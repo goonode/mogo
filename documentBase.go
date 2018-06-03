@@ -26,13 +26,13 @@ func (d *DocumentBase) IsNew() bool {
 	return !d.exists
 }
 
-// GetId satisfies the document interface
-func (d *DocumentBase) GetId() bson.ObjectId {
+// GetID satisfies the document interface
+func (d *DocumentBase) GetID() bson.ObjectId {
 	return d.ID
 }
 
-// SetId sets the ID for the document
-func (d *DocumentBase) SetId(id bson.ObjectId) {
+// SetID sets the ID for the document
+func (d *DocumentBase) SetID(id bson.ObjectId) {
 	d.ID = id
 }
 

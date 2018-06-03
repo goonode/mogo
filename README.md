@@ -12,7 +12,7 @@ Bongo is tested using the fantasic GoConvey (https://github.com/smartystreets/go
 Since we're not yet at a major release, some things in the API might change. Here's a list:
 
 * Save - stable
-* Find/FindOne/FindById - stable
+* Find/FindOne/FindByID - stable
 * Delete - stable
 * Save/Delete/Find/Validation hooks - stable
 * Cascade - unstable (might need a refactor)
@@ -56,7 +56,7 @@ If you need to, you can access the raw `mgo` session with `connection.Session`
 
 ### Create a Document
 
-Any struct can be used as a document as long as it satisfies the `Document` interface (`SetId(bson.ObjectId)`, `GetId() bson.ObjectId`). We recommend that you use the `DocumentBase` provided with Bongo, which implements that interface as well as the `NewTracker`, `TimeCreatedTracker` and `TimeModifiedTracker` interfaces (to keep track of new/existing documents and created/modified timestamps). If you use the `DocumentBase` or something similar, make sure you use `bson:",inline"` otherwise you will get nested behavior when the data goes to your database.
+Any struct can be used as a document as long as it satisfies the `Document` interface (`SetID(bson.ObjectId)`, `GetID() bson.ObjectId`). We recommend that you use the `DocumentBase` provided with Bongo, which implements that interface as well as the `NewTracker`, `TimeCreatedTracker` and `TimeModifiedTracker` interfaces (to keep track of new/existing documents and created/modified timestamps). If you use the `DocumentBase` or something similar, make sure you use `bson:",inline"` otherwise you will get nested behavior when the data goes to your database.
 
 For example:
 
@@ -152,7 +152,7 @@ fmt.Printf("Deleted %d documents", changeInfo.Removed)
 
 ```go
 person := &Person{}
-err := connection.Collection("people").FindById(bson.ObjectIdHex(StringId), person)
+err := connection.Collection("people").FindByID(bson.ObjectIdHex(StringId), person)
 ```
 
 The error returned can be a `DocumentNotFoundError` or a more low-level MongoDB error. To check, use a type assertion:

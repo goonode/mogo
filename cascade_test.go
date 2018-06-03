@@ -184,7 +184,7 @@ func TestCascade(t *testing.T) {
 
 		child.GetDiffTracker().Reset()
 		newParent := &Parent{}
-		collection.FindById(parent.ID, newParent)
+		collection.FindByID(parent.ID, newParent)
 
 		So(newParent.Child.Name, ShouldEqual, "Foo McGoo")
 		So(newParent.Child.ID.Hex(), ShouldEqual, child.ID.Hex())
@@ -209,12 +209,12 @@ func TestCascade(t *testing.T) {
 		So(child.GetDiffTracker().Modified("ParentID"), ShouldEqual, false)
 
 		newParent1 := &Parent{}
-		collection.FindById(parent.ID, newParent1)
+		collection.FindByID(parent.ID, newParent1)
 		So(newParent1.Child.Name, ShouldEqual, "")
 		So(newParent1.ChildProp, ShouldEqual, "")
 		So(len(newParent1.Children), ShouldEqual, 0)
 		newParent2 := &Parent{}
-		collection.FindById(parent2.ID, newParent2)
+		collection.FindByID(parent2.ID, newParent2)
 		So(newParent2.ChildProp, ShouldEqual, "Doop McGoop")
 		So(newParent2.Child.Name, ShouldEqual, "Foo McGoo")
 		So(newParent2.Child.ID.Hex(), ShouldEqual, child.ID.Hex())
@@ -235,7 +235,7 @@ func TestCascade(t *testing.T) {
 
 		// Fetch the parent
 		newParent3 := &Parent{}
-		collection.FindById(parent2.ID, newParent3)
+		collection.FindByID(parent2.ID, newParent3)
 		So(newParent3.Child.SubChild.Foo, ShouldEqual, "MySubChild")
 		So(newParent3.Child.SubChild.ID.Hex(), ShouldEqual, subChild.ID.Hex())
 
@@ -246,7 +246,7 @@ func TestCascade(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 
 		So(err, ShouldEqual, nil)
-		collection.FindById(parent2.ID, newParent4)
+		collection.FindByID(parent2.ID, newParent4)
 		So(newParent4.Child.Name, ShouldEqual, "")
 		So(newParent4.ChildProp, ShouldEqual, "")
 		So(len(newParent4.Children), ShouldEqual, 0)

@@ -72,7 +72,7 @@ func CascadeSave(collection *Collection, doc Document) error {
 		for _, conf := range toCascade {
 
 			if len(conf.ReferenceQuery) == 0 {
-				conf.ReferenceQuery = []*ReferenceField{&ReferenceField{"_id", doc.GetId()}}
+				conf.ReferenceQuery = []*ReferenceField{&ReferenceField{"_id", doc.GetID()}}
 			}
 			_, err := cascadeSaveWithConfig(conf, doc)
 			if err != nil {
@@ -103,7 +103,7 @@ func CascadeDelete(collection *Collection, doc interface{}) {
 		// Get the ID
 		for _, conf := range toCascade {
 			if len(conf.ReferenceQuery) == 0 {
-				id, err := reflections.GetField(doc, "Id")
+				id, err := reflections.GetField(doc, "ID")
 				if err != nil {
 					panic(err)
 				}

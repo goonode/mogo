@@ -1,9 +1,10 @@
 package bongo
 
 import (
+	"testing"
+
 	"github.com/globalsign/mgo/bson"
 	. "github.com/smartystreets/goconvey/convey"
-	"testing"
 )
 
 func TestValidation(t *testing.T) {
@@ -20,7 +21,7 @@ func TestValidation(t *testing.T) {
 			So(ValidateInclusionIn("bing", []string{"foo", "bar", "baz"}), ShouldEqual, false)
 		})
 
-		Convey("ValidateMongoIdRef()", func() {
+		Convey("ValidateMongoIDRef()", func() {
 			connection := getConnection()
 
 			defer func() {
@@ -34,9 +35,9 @@ func TestValidation(t *testing.T) {
 			err := connection.Collection("docs").Save(doc)
 
 			So(err, ShouldEqual, nil)
-			So(ValidateMongoIdRef(doc.ID, connection.Collection("docs")), ShouldEqual, true)
-			So(ValidateMongoIdRef(bson.NewObjectId(), connection.Collection("docs")), ShouldEqual, false)
-			So(ValidateMongoIdRef(bson.NewObjectId(), connection.Collection("other_collection")), ShouldEqual, false)
+			So(ValidateMongoIDRef(doc.ID, connection.Collection("docs")), ShouldEqual, true)
+			So(ValidateMongoIDRef(bson.NewObjectId(), connection.Collection("docs")), ShouldEqual, false)
+			So(ValidateMongoIDRef(bson.NewObjectId(), connection.Collection("other_collection")), ShouldEqual, false)
 
 		})
 	})

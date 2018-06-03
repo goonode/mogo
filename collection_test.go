@@ -2,9 +2,10 @@ package bongo
 
 import (
 	"errors"
+	"testing"
+
 	"github.com/globalsign/mgo/bson"
 	. "github.com/smartystreets/goconvey/convey"
-	"testing"
 )
 
 type noHookDocument struct {
@@ -134,21 +135,21 @@ func TestCollection(t *testing.T) {
 		})
 	})
 
-	Convey("FindById", t, func() {
+	Convey("FindByID", t, func() {
 		doc := &noHookDocument{}
 		err := conn.Collection("tests").Save(doc)
 		So(err, ShouldEqual, nil)
 
 		Convey("should find a doc by id", func() {
 			newDoc := &noHookDocument{}
-			err := conn.Collection("tests").FindById(doc.GetId(), newDoc)
+			err := conn.Collection("tests").FindByID(doc.GetID(), newDoc)
 			So(err, ShouldEqual, nil)
 			So(newDoc.ID.Hex(), ShouldEqual, doc.ID.Hex())
 		})
 
 		Convey("should find a doc by id and run afterFind", func() {
 			newDoc := &hookedDocument{}
-			err := conn.Collection("tests").FindById(doc.GetId(), newDoc)
+			err := conn.Collection("tests").FindByID(doc.GetID(), newDoc)
 			So(err, ShouldEqual, nil)
 			So(newDoc.ID.Hex(), ShouldEqual, doc.ID.Hex())
 			So(newDoc.RanAfterFind, ShouldEqual, true)
@@ -156,7 +157,7 @@ func TestCollection(t *testing.T) {
 
 		Convey("should return a document not found error if doc not found", func() {
 
-			err := conn.Collection("tests").FindById(bson.NewObjectId(), doc)
+			err := conn.Collection("tests").FindByID(bson.NewObjectId(), doc)
 			_, ok := err.(*DocumentNotFoundError)
 			So(ok, ShouldEqual, true)
 		})
