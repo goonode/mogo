@@ -3,59 +3,88 @@ package bongo
 import (
 	"errors"
 	// "fmt"
+	"time"
+
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
-	"time"
 	// "math"
 	"strings"
 )
 
+// BeforeSaveHook ...
 type BeforeSaveHook interface {
 	BeforeSave(*Collection) error
 }
 
+// AfterSaveHook ...
 type AfterSaveHook interface {
 	AfterSave(*Collection) error
 }
 
+// BeforeDeleteHook ...
 type BeforeDeleteHook interface {
 	BeforeDelete(*Collection) error
 }
 
+// AfterDeleteHook ...
 type AfterDeleteHook interface {
 	AfterDelete(*Collection) error
 }
 
+// AfterFindHook ...
 type AfterFindHook interface {
 	AfterFind(*Collection) error
 }
 
+// ValidateHook ...
 type ValidateHook interface {
 	Validate(*Collection) []error
 }
 
+// ValidationError ...
 type ValidationError struct {
 	Errors []error
 }
 
+// TimeCreatedTracker ...
 type TimeCreatedTracker interface {
 	GetCreated() time.Time
 	SetCreated(time.Time)
 }
 
+// TimeModifiedTracker ...
 type TimeModifiedTracker interface {
 	GetModified() time.Time
 	SetModified(time.Time)
 }
 
+// Document ...
 type Document interface {
 	GetId() bson.ObjectId
 	SetId(bson.ObjectId)
 }
 
+// CascadingDocument ...
 type CascadingDocument interface {
 	GetCascade(*Collection) []*CascadeConfig
 }
+
+// Collection ...
+type Collection struct {
+	Name       string
+	Database   string
+	Context    *Context
+	Connection *Connection
+}
+
+// NewTracker ...
+type NewTracker interface {
+	SetIsNew(bool)
+	IsNew() bool
+}
+
+// DocumentNotFoundError ...
+type DocumentNotFoundError struct{}
 
 func (v *ValidationError) Error() string {
 	errs := make([]string, len(v.Errors))
@@ -66,20 +95,6 @@ func (v *ValidationError) Error() string {
 	return "Validation failed. (" + strings.Join(errs, ", ") + ")"
 }
 
-type Collection struct {
-	Name       string
-	Database   string
-	Context    *Context
-	Connection *Connection
-}
-
-type NewTracker interface {
-	SetIsNew(bool)
-	IsNew() bool
-}
-
-type DocumentNotFoundError struct{}
-
 func (d DocumentNotFoundError) Error() string {
 	return "Document not found"
 }
@@ -89,11 +104,12 @@ func (c *Collection) Collection() *mgo.Collection {
 	return c.Connection.Session.DB(c.Database).C(c.Name)
 }
 
-// CollectionOnSession ...
+// collectionOnSession ...
 func (c *Collection) collectionOnSession(sess *mgo.Session) *mgo.Collection {
 	return sess.DB(c.Database).C(c.Name)
 }
 
+// PreSave ...
 func (c *Collection) PreSave(doc Document) error {
 	// Validate?
 	if validator, ok := doc.(ValidateHook); ok {
@@ -114,6 +130,7 @@ func (c *Collection) PreSave(doc Document) error {
 	return nil
 }
 
+// Save ...
 func (c *Collection) Save(doc Document) error {
 	var err error
 	sess := c.Connection.Session.Clone()
@@ -179,6 +196,7 @@ func (c *Collection) Save(doc Document) error {
 	return nil
 }
 
+// FindById ...
 func (c *Collection) FindById(id bson.ObjectId, doc interface{}) error {
 
 	err := c.Collection().FindId(id).One(doc)
@@ -188,9 +206,9 @@ func (c *Collection) FindById(id bson.ObjectId, doc interface{}) error {
 	if err != nil {
 		if err == mgo.ErrNotFound {
 			return &DocumentNotFoundError{}
-		} else {
-			return err
 		}
+		return err
+
 	}
 
 	if hook, ok := doc.(AfterFindHook); ok {
@@ -207,7 +225,7 @@ func (c *Collection) FindById(id bson.ObjectId, doc interface{}) error {
 	return nil
 }
 
-// This doesn't actually do any DB interaction, it just creates the result set so we can
+// Find doesn't actually do any DB interaction, it just creates the result set so we can
 // start looping through on the iterator
 func (c *Collection) Find(query interface{}) *ResultSet {
 	col := c.Collection()
@@ -224,6 +242,7 @@ func (c *Collection) Find(query interface{}) *ResultSet {
 	return resultset
 }
 
+// FindOne ...
 func (c *Collection) FindOne(query interface{}, doc interface{}) error {
 
 	// Now run a find
@@ -236,10 +255,8 @@ func (c *Collection) FindOne(query interface{}, doc interface{}) error {
 		// There could have been an error fetching the next one, which would set the Error property on the resultset
 		if results.Error != nil {
 			return results.Error
-		} else {
-			return &DocumentNotFoundError{}
 		}
-
+		return &DocumentNotFoundError{}
 	}
 
 	if newt, ok := doc.(NewTracker); ok {
@@ -249,6 +266,7 @@ func (c *Collection) FindOne(query interface{}, doc interface{}) error {
 	return nil
 }
 
+// DeleteDocument ...
 func (c *Collection) DeleteDocument(doc Document) error {
 	var err error
 	// Create a new session per mgo's suggestion to avoid blocking
@@ -282,7 +300,7 @@ func (c *Collection) DeleteDocument(doc Document) error {
 
 }
 
-// Convenience method which just delegates to mgo. Note that hooks are NOT run
+// Delete is a convenience method which just delegates to mgo. Note that hooks are NOT run
 func (c *Collection) Delete(query bson.M) (*mgo.ChangeInfo, error) {
 	sess := c.Connection.Session.Clone()
 	defer sess.Close()
@@ -290,7 +308,7 @@ func (c *Collection) Delete(query bson.M) (*mgo.ChangeInfo, error) {
 	return col.RemoveAll(query)
 }
 
-// Convenience method which just delegates to mgo. Note that hooks are NOT run
+// DeleteOne is a convenience method which just delegates to mgo. Note that hooks are NOT run
 func (c *Collection) DeleteOne(query bson.M) error {
 	sess := c.Connection.Session.Clone()
 	defer sess.Close()

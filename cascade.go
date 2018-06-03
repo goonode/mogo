@@ -2,11 +2,12 @@ package bongo
 
 import (
 	"errors"
-	"github.com/go-bongo/go-dotaccess"
-	"github.com/oleiade/reflections"
+	"strings"
+
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
-	"strings"
+	"github.com/go-bongo/go-dotaccess"
+	"github.com/oleiade/reflections"
 )
 
 // Relation types (one-to-many or one-to-one)
@@ -15,12 +16,13 @@ const (
 	REL_ONE  = iota
 )
 
+// ReferenceField ...
 type ReferenceField struct {
 	BsonName string
 	Value    interface{}
 }
 
-// Configuration to tell Bongo how to cascade data to related documents on save or delete
+// CascadeConfig configuration to tell Bongo how to cascade data to related documents on save or delete
 type CascadeConfig struct {
 	// The collection to cascade to
 	Collection *Collection
@@ -58,9 +60,10 @@ type CascadeConfig struct {
 	ReferenceQuery []*ReferenceField
 }
 
+// CascadeFilter ...
 type CascadeFilter func(data map[string]interface{})
 
-// Cascades a document's properties to related documents, after it has been prepared
+// CascadeSave cascades a document's properties to related documents, after it has been prepared
 // for db insertion (encrypted, etc)
 func CascadeSave(collection *Collection, doc Document) error {
 	// Find out which properties to cascade
@@ -84,23 +87,20 @@ func CascadeSave(collection *Collection, doc Document) error {
 						return err
 					}
 				}
-
 			}
 		}
 	}
 	return nil
 }
 
-// Deletes references to a document from its related documents
+// CascadeDelete deletes references to a document from its related documents
 func CascadeDelete(collection *Collection, doc interface{}) {
 	// Find out which properties to cascade
 	if conv, ok := doc.(interface {
 		GetCascade(*Collection) []*CascadeConfig
 	}); ok {
 		toCascade := conv.GetCascade(collection)
-
 		// Get the ID
-
 		for _, conf := range toCascade {
 			if len(conf.ReferenceQuery) == 0 {
 				id, err := reflections.GetField(doc, "Id")
@@ -109,11 +109,8 @@ func CascadeDelete(collection *Collection, doc interface{}) {
 				}
 				conf.ReferenceQuery = []*ReferenceField{&ReferenceField{"_id", id}}
 			}
-
 			cascadeDeleteWithConfig(conf)
-
 		}
-
 	}
 }
 
@@ -220,15 +217,13 @@ func cascadeSaveWithConfig(conf *CascadeConfig, doc Document) (*mgo.ChangeInfo, 
 
 		update2["$push"][conf.ThroughProp] = data
 		return conf.Collection.Collection().UpdateAll(conf.Query, update2)
-
 	}
-
 	return &mgo.ChangeInfo{}, errors.New("Invalid relation type")
-
 }
 
-// If you need to, you can use this to construct the data map that will be cascaded down to
-// related documents. Doing this is not recommended unless the cascaded fields are dynamic.
+// MapFromCascadeProperties ... if you need to, you can use this to construct the data map
+// that will be cascaded down to related documents. Doing this is not recommended unless the
+// cascaded fields are dynamic.
 func MapFromCascadeProperties(properties []string, doc Document) map[string]interface{} {
 	data := make(map[string]interface{})
 

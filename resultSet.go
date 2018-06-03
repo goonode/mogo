@@ -1,10 +1,12 @@
 package bongo
 
 import (
-	"github.com/globalsign/mgo"
 	"math"
+
+	"github.com/globalsign/mgo"
 )
 
+// ResultSet ...
 type ResultSet struct {
 	Query      *mgo.Query
 	Iter       *mgo.Iter
@@ -14,6 +16,7 @@ type ResultSet struct {
 	Params     interface{}
 }
 
+// PaginationInfo ...
 type PaginationInfo struct {
 	Current       int `json:"current"`
 	TotalPages    int `json:"totalPages"`
@@ -22,6 +25,7 @@ type PaginationInfo struct {
 	RecordsOnPage int `json:"recordsOnPage"`
 }
 
+// Next ...
 func (r *ResultSet) Next(doc interface{}) bool {
 
 	// Check if the iter has been instantiated yet
@@ -56,6 +60,7 @@ func (r *ResultSet) Next(doc interface{}) bool {
 	return false
 }
 
+// Free ...
 func (r *ResultSet) Free() error {
 	if r.loadedIter {
 		if err := r.Iter.Close(); err != nil {
@@ -66,7 +71,8 @@ func (r *ResultSet) Free() error {
 	return nil
 }
 
-// Set skip + limit on the current query and generates a PaginationInfo struct with info for your front end
+// Paginate sets skip + limit on the current query and generates a PaginationInfo
+// struct with info for your front end
 func (r *ResultSet) Paginate(perPage, page int) (*PaginationInfo, error) {
 
 	info := new(PaginationInfo)
@@ -102,13 +108,11 @@ func (r *ResultSet) Paginate(perPage, page int) (*PaginationInfo, error) {
 	if info.Current < info.TotalPages {
 		info.RecordsOnPage = info.PerPage
 	} else {
-
 		info.RecordsOnPage = int(math.Mod(float64(count), float64(perPage)))
 
 		if info.RecordsOnPage == 0 && count > 0 {
 			info.RecordsOnPage = perPage
 		}
-
 	}
 
 	return info, nil

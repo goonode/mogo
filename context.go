@@ -13,6 +13,7 @@ func (c *Context) Get(key string) interface{} {
 	return nil
 }
 
+// Delete ...
 func (c *Context) Delete(key string) bool {
 	if _, ok := c.set[key]; ok {
 		delete(c.set, key)

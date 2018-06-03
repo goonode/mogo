@@ -7,6 +7,7 @@ import (
 	"github.com/globalsign/mgo"
 )
 
+// Config ...
 type Config struct {
 	ConnectionString string
 	Database         string
@@ -16,6 +17,7 @@ type Config struct {
 // var EncryptionKey [32]byte
 // var EnableEncryption bool
 
+// Connection ...
 type Connection struct {
 	Config  *Config
 	Session *mgo.Session
@@ -23,7 +25,7 @@ type Connection struct {
 	Context *Context
 }
 
-// Create a new connection and run Connect()
+// Connect creates a new connection and run Connect()
 func Connect(config *Config) (*Connection, error) {
 	conn := &Connection{
 		Config:  config,

@@ -1,11 +1,12 @@
 package bongo
 
 import (
-	. "github.com/smartystreets/goconvey/convey"
-	"github.com/globalsign/mgo/bson"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/globalsign/mgo/bson"
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 type Parent struct {
@@ -30,7 +31,7 @@ func (f *Parent) GetDiffTracker() *DiffTracker {
 
 type Child struct {
 	DocumentBase `bson:",inline"`
-	ParentId     bson.ObjectId `bson:",omitempty"`
+	ParentID     bson.ObjectId `bson:",omitempty"`
 	Name         string
 	SubChild     SubChildRef `bson:"subChild"`
 	ChildProp    string
@@ -40,7 +41,7 @@ type Child struct {
 func (c *Child) GetCascade(collection *Collection) []*CascadeConfig {
 
 	ref := ChildRef{
-		Id:       c.Id,
+		ID:       c.Id,
 		Name:     c.Name,
 		SubChild: c.SubChild,
 	}
@@ -52,7 +53,7 @@ func (c *Child) GetCascade(collection *Collection) []*CascadeConfig {
 		ThroughProp: "child",
 		RelType:     REL_ONE,
 		Query: bson.M{
-			"_id": c.ParentId,
+			"_id": c.ParentID,
 		},
 	}
 
@@ -64,7 +65,7 @@ func (c *Child) GetCascade(collection *Collection) []*CascadeConfig {
 		},
 		RelType: REL_ONE,
 		Query: bson.M{
-			"_id": c.ParentId,
+			"_id": c.ParentID,
 		},
 	}
 
@@ -75,16 +76,16 @@ func (c *Child) GetCascade(collection *Collection) []*CascadeConfig {
 		ThroughProp: "children",
 		RelType:     REL_MANY,
 		Query: bson.M{
-			"_id": c.ParentId,
+			"_id": c.ParentID,
 		},
 	}
 
-	if c.GetDiffTracker().Modified("ParentId") {
+	if c.GetDiffTracker().Modified("ParentID") {
 
-		origId, _ := c.diffTracker.GetOriginalValue("ParentId")
-		if origId != nil {
+		origID, _ := c.diffTracker.GetOriginalValue("ParentID")
+		if origID != nil {
 			oldQuery := bson.M{
-				"_id": origId,
+				"_id": origID,
 			}
 			cascadeSingle.OldQuery = oldQuery
 			cascadeCopy.OldQuery = oldQuery
@@ -96,24 +97,24 @@ func (c *Child) GetCascade(collection *Collection) []*CascadeConfig {
 	return []*CascadeConfig{cascadeSingle, cascadeMulti, cascadeCopy}
 }
 
-func (f *Child) GetDiffTracker() *DiffTracker {
-	v := reflect.ValueOf(f.diffTracker)
+func (c *Child) GetDiffTracker() *DiffTracker {
+	v := reflect.ValueOf(c.diffTracker)
 	if !v.IsValid() || v.IsNil() {
-		f.diffTracker = NewDiffTracker(f)
+		c.diffTracker = NewDiffTracker(c)
 	}
 
-	return f.diffTracker
+	return c.diffTracker
 }
 
 type SubChild struct {
 	DocumentBase `bson:",inline"`
 	Foo          string
-	ChildId      bson.ObjectId
+	ChildID      bson.ObjectId
 }
 
 func (c *SubChild) GetCascade(collection *Collection) []*CascadeConfig {
 	ref := SubChildRef{
-		Id:  c.Id,
+		ID:  c.Id,
 		Foo: c.Foo,
 	}
 	connection := collection.Connection
@@ -124,7 +125,7 @@ func (c *SubChild) GetCascade(collection *Collection) []*CascadeConfig {
 		ThroughProp: "subChild",
 		RelType:     REL_ONE,
 		Query: bson.M{
-			"_id": c.ChildId,
+			"_id": c.ChildID,
 		},
 		Nest:     true,
 		Instance: &Child{},
@@ -134,12 +135,12 @@ func (c *SubChild) GetCascade(collection *Collection) []*CascadeConfig {
 }
 
 type SubChildRef struct {
-	Id  bson.ObjectId `bson:"_id,omitempty"`
+	ID  bson.ObjectId `bson:"_id,omitempty"`
 	Foo string
 }
 
 type ChildRef struct {
-	Id       bson.ObjectId `bson:"_id,omitempty"`
+	ID       bson.ObjectId `bson:"_id,omitempty"`
 	Name     string
 	SubChild SubChildRef
 }
@@ -170,7 +171,7 @@ func TestCascade(t *testing.T) {
 		So(err, ShouldEqual, nil)
 
 		child := &Child{
-			ParentId:  parent.Id,
+			ParentID:  parent.Id,
 			Name:      "Foo McGoo",
 			ChildProp: "Doop McGoop",
 		}
@@ -186,16 +187,16 @@ func TestCascade(t *testing.T) {
 		collection.FindById(parent.Id, newParent)
 
 		So(newParent.Child.Name, ShouldEqual, "Foo McGoo")
-		So(newParent.Child.Id.Hex(), ShouldEqual, child.Id.Hex())
+		So(newParent.Child.ID.Hex(), ShouldEqual, child.Id.Hex())
 		So(newParent.Children[0].Name, ShouldEqual, "Foo McGoo")
-		So(newParent.Children[0].Id.Hex(), ShouldEqual, child.Id.Hex())
+		So(newParent.Children[0].ID.Hex(), ShouldEqual, child.Id.Hex())
 
 		// No through prop should populate directly o the parent
 		So(newParent.ChildProp, ShouldEqual, "Doop McGoop")
 
 		// Now change the child parent Id...
-		child.ParentId = parent2.Id
-		So(child.GetDiffTracker().Modified("ParentId"), ShouldEqual, true)
+		child.ParentID = parent2.Id
+		So(child.GetDiffTracker().Modified("ParentID"), ShouldEqual, true)
 
 		err = childCollection.Save(child)
 		So(err, ShouldEqual, nil)
@@ -205,7 +206,7 @@ func TestCascade(t *testing.T) {
 
 		child.diffTracker.Reset()
 		// Now make sure it says the parent id DIDNT change, because we just reset the tracker
-		So(child.GetDiffTracker().Modified("ParentId"), ShouldEqual, false)
+		So(child.GetDiffTracker().Modified("ParentID"), ShouldEqual, false)
 
 		newParent1 := &Parent{}
 		collection.FindById(parent.Id, newParent1)
@@ -216,14 +217,14 @@ func TestCascade(t *testing.T) {
 		collection.FindById(parent2.Id, newParent2)
 		So(newParent2.ChildProp, ShouldEqual, "Doop McGoop")
 		So(newParent2.Child.Name, ShouldEqual, "Foo McGoo")
-		So(newParent2.Child.Id.Hex(), ShouldEqual, child.Id.Hex())
+		So(newParent2.Child.ID.Hex(), ShouldEqual, child.Id.Hex())
 		So(newParent2.Children[0].Name, ShouldEqual, "Foo McGoo")
-		So(newParent2.Children[0].Id.Hex(), ShouldEqual, child.Id.Hex())
+		So(newParent2.Children[0].ID.Hex(), ShouldEqual, child.Id.Hex())
 
 		// Make a new sub child, save it, and it should cascade to the child AND the parent
 		subChild := &SubChild{
 			Foo:     "MySubChild",
-			ChildId: child.Id,
+			ChildID: child.Id,
 		}
 
 		err = subchildCollection.Save(subChild)
@@ -236,7 +237,7 @@ func TestCascade(t *testing.T) {
 		newParent3 := &Parent{}
 		collection.FindById(parent2.Id, newParent3)
 		So(newParent3.Child.SubChild.Foo, ShouldEqual, "MySubChild")
-		So(newParent3.Child.SubChild.Id.Hex(), ShouldEqual, subChild.Id.Hex())
+		So(newParent3.Child.SubChild.ID.Hex(), ShouldEqual, subChild.Id.Hex())
 
 		newParent4 := &Parent{}
 		err = childCollection.DeleteDocument(child)

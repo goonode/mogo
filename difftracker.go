@@ -1,23 +1,26 @@
 package bongo
 
 import (
-	"errors"
 	"fmt"
+
 	"github.com/go-bongo/go-dotaccess"
 	// "github.com/go-bongo/mgo/bson"
 	"reflect"
 	"strings"
 )
 
+// DiffTracker ...
 type DiffTracker struct {
 	original interface{}
 	current  interface{}
 }
 
+// Trackable ...
 type Trackable interface {
 	GetDiffTracker() *DiffTracker
 }
 
+// NewDiffTracker ...
 func NewDiffTracker(doc interface{}) *DiffTracker {
 	c := &DiffTracker{
 		current:  doc,
@@ -27,11 +30,13 @@ func NewDiffTracker(doc interface{}) *DiffTracker {
 	return c
 }
 
+// DiffTrackingSession ...
 type DiffTrackingSession struct {
 	ChangedFields []string
 	IsNew         bool
 }
 
+// NewSession ...
 func (d *DiffTracker) NewSession(useBsonTags bool) (*DiffTrackingSession, error) {
 	sess := &DiffTrackingSession{}
 
@@ -43,36 +48,41 @@ func (d *DiffTracker) NewSession(useBsonTags bool) (*DiffTrackingSession, error)
 	return sess, err
 }
 
+// Reset ...
 func (d *DiffTracker) Reset() {
 	// Store a copy of current
 	d.original = reflect.Indirect(reflect.ValueOf(d.current)).Interface()
 }
 
+// Modified ...
 func (s *DiffTrackingSession) Modified(field string) bool {
 
 	if s.IsNew {
 		return true
-	} else {
-
-		for _, d := range s.ChangedFields {
-			if d == field || strings.HasPrefix(d, field+".") {
-				return true
-			}
-		}
-		return false
 	}
+
+	for _, d := range s.ChangedFields {
+		if d == field || strings.HasPrefix(d, field+".") {
+			return true
+		}
+	}
+	return false
 }
 
+// Modified test on DiffTracker struct...
 func (d *DiffTracker) Modified(field string) bool {
 	sess, _ := d.NewSession(false)
 	return sess.Modified(field)
 }
 
+// GetModified ...
 func (d *DiffTracker) GetModified(useBson bool) (bool, []string) {
 	isNew, diffs, _ := d.Compare(useBson)
 
 	return isNew, diffs
 }
+
+// GetOriginalValue ...
 func (d *DiffTracker) GetOriginalValue(field string) (interface{}, error) {
 	if d.original != nil {
 		return dotaccess.Get(d.original, field)
@@ -81,14 +91,17 @@ func (d *DiffTracker) GetOriginalValue(field string) (interface{}, error) {
 
 }
 
+// SetOriginal ...
 func (d *DiffTracker) SetOriginal(orig interface{}) {
 	d.original = reflect.Indirect(reflect.ValueOf(orig)).Interface()
 }
 
+// Clear ...
 func (d *DiffTracker) Clear() {
 	d.original = nil
 }
 
+// Compare ...
 func (d *DiffTracker) Compare(useBson bool) (bool, []string, error) {
 	defer func() {
 
@@ -100,9 +113,8 @@ func (d *DiffTracker) Compare(useBson bool) (bool, []string, error) {
 	if d.original != nil {
 		diffs, err := GetChangedFields(d.original, d.current, useBson)
 		return false, diffs, err
-	} else {
-		return true, []string{}, nil
 	}
+	return true, []string{}, nil
 }
 
 func getFields(t reflect.Type) []string {
@@ -128,10 +140,12 @@ func isNilOrInvalid(f reflect.Value) bool {
 	return (!f.IsValid())
 }
 
+// Stringer ...
 type Stringer interface {
 	String() string
 }
 
+// GetChangedFields ...
 func GetChangedFields(struct1 interface{}, struct2 interface{}, useBson bool) ([]string, error) {
 
 	diffs := make([]string, 0)
@@ -151,11 +165,11 @@ func GetChangedFields(struct1 interface{}, struct2 interface{}, useBson bool) ([
 	}
 
 	if type1.String() != type2.String() {
-		return diffs, errors.New(fmt.Sprintf("Cannot compare two structs of different types %s and %s", type1.String(), type2.String()))
+		return diffs, fmt.Errorf("Cannot compare two structs of different types %s and %s", type1.String(), type2.String())
 	}
 
 	if type1.Kind() != reflect.Struct || type2.Kind() != reflect.Struct {
-		return diffs, errors.New(fmt.Sprintf("Can only compare two structs or two pointers to structs", type1.Kind(), type2.Kind()))
+		return diffs, fmt.Errorf("Can only compare two structs or two pointers to structs (got %s and %s)", type1.Kind(), type2.Kind())
 	}
 
 	for i := 0; i < type1.NumField(); i++ {

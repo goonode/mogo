@@ -1,8 +1,9 @@
 package bongo
 
 import (
-	"github.com/globalsign/mgo/bson"
 	"time"
+
+	"github.com/globalsign/mgo/bson"
 )
 
 type DocumentBase struct {
@@ -14,42 +15,42 @@ type DocumentBase struct {
 	exists bool
 }
 
-// Satisfy the new tracker interface
+// SetIsNew satisfies the new tracker interface
 func (d *DocumentBase) SetIsNew(isNew bool) {
 	d.exists = !isNew
 }
 
-// Is the document new
+// IsNew to ask Is the document new
 func (d *DocumentBase) IsNew() bool {
 	return !d.exists
 }
 
-// Satisfy the document interface
+// GetId satisfies the document interface
 func (d *DocumentBase) GetId() bson.ObjectId {
 	return d.Id
 }
 
-// Sets the ID for the document
+// SetId sets the ID for the document
 func (d *DocumentBase) SetId(id bson.ObjectId) {
 	d.Id = id
 }
 
-// Set's the created date
+// SetCreated sets the created date
 func (d *DocumentBase) SetCreated(t time.Time) {
 	d.Created = t
 }
 
-// Get the created date
+// GetCreated gets the created date
 func (d *DocumentBase) GetCreated() time.Time {
 	return d.Created
 }
 
-// Sets the modified date
+// SetModified sets the modified date
 func (d *DocumentBase) SetModified(t time.Time) {
 	d.Modified = t
 }
 
-// Get's the modified date
+// GetModified gets the modified date
 func (d *DocumentBase) GetModified() time.Time {
 	return d.Modified
 }
