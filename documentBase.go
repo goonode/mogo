@@ -6,8 +6,9 @@ import (
 	"github.com/globalsign/mgo/bson"
 )
 
+// DocumentBase ...
 type DocumentBase struct {
-	Id       bson.ObjectId `bson:"_id,omitempty" json:"_id"`
+	ID       bson.ObjectId `bson:"_id,omitempty" json:"_id"`
 	Created  time.Time     `bson:"_created" json:"_created"`
 	Modified time.Time     `bson:"_modified" json:"_modified"`
 
@@ -27,12 +28,12 @@ func (d *DocumentBase) IsNew() bool {
 
 // GetId satisfies the document interface
 func (d *DocumentBase) GetId() bson.ObjectId {
-	return d.Id
+	return d.ID
 }
 
 // SetId sets the ID for the document
 func (d *DocumentBase) SetId(id bson.ObjectId) {
-	d.Id = id
+	d.ID = id
 }
 
 // SetCreated sets the created date

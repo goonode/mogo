@@ -1,8 +1,8 @@
 package bongo
 
 import (
-	. "github.com/smartystreets/goconvey/convey"
 	"github.com/globalsign/mgo/bson"
+	. "github.com/smartystreets/goconvey/convey"
 	"testing"
 )
 
@@ -34,7 +34,7 @@ func TestValidation(t *testing.T) {
 			err := connection.Collection("docs").Save(doc)
 
 			So(err, ShouldEqual, nil)
-			So(ValidateMongoIdRef(doc.Id, connection.Collection("docs")), ShouldEqual, true)
+			So(ValidateMongoIdRef(doc.ID, connection.Collection("docs")), ShouldEqual, true)
 			So(ValidateMongoIdRef(bson.NewObjectId(), connection.Collection("docs")), ShouldEqual, false)
 			So(ValidateMongoIdRef(bson.NewObjectId(), connection.Collection("other_collection")), ShouldEqual, false)
 

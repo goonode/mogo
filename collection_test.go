@@ -2,8 +2,8 @@ package bongo
 
 import (
 	"errors"
-	. "github.com/smartystreets/goconvey/convey"
 	"github.com/globalsign/mgo/bson"
+	. "github.com/smartystreets/goconvey/convey"
 	"testing"
 )
 
@@ -74,7 +74,7 @@ func TestCollection(t *testing.T) {
 
 			err := conn.Collection("tests").Save(doc)
 			So(err, ShouldEqual, nil)
-			So(doc.Id.Valid(), ShouldEqual, true)
+			So(doc.ID.Valid(), ShouldEqual, true)
 			So(doc.IsNew(), ShouldEqual, false)
 		})
 
@@ -104,7 +104,7 @@ func TestCollection(t *testing.T) {
 
 			err := conn.Collection("tests").Save(doc)
 			So(err, ShouldEqual, nil)
-			So(doc.Id.Valid(), ShouldEqual, true)
+			So(doc.ID.Valid(), ShouldEqual, true)
 			So(doc.IsNew(), ShouldEqual, false)
 
 			err = conn.Collection("tests").Save(doc)
@@ -143,14 +143,14 @@ func TestCollection(t *testing.T) {
 			newDoc := &noHookDocument{}
 			err := conn.Collection("tests").FindById(doc.GetId(), newDoc)
 			So(err, ShouldEqual, nil)
-			So(newDoc.Id.Hex(), ShouldEqual, doc.Id.Hex())
+			So(newDoc.ID.Hex(), ShouldEqual, doc.ID.Hex())
 		})
 
 		Convey("should find a doc by id and run afterFind", func() {
 			newDoc := &hookedDocument{}
 			err := conn.Collection("tests").FindById(doc.GetId(), newDoc)
 			So(err, ShouldEqual, nil)
-			So(newDoc.Id.Hex(), ShouldEqual, doc.Id.Hex())
+			So(newDoc.ID.Hex(), ShouldEqual, doc.ID.Hex())
 			So(newDoc.RanAfterFind, ShouldEqual, true)
 		})
 
@@ -178,7 +178,7 @@ func TestCollection(t *testing.T) {
 				"name": "foo",
 			}, newDoc)
 			So(err, ShouldEqual, nil)
-			So(newDoc.Id.Hex(), ShouldEqual, doc.Id.Hex())
+			So(newDoc.ID.Hex(), ShouldEqual, doc.ID.Hex())
 		})
 
 		Convey("should find one with query and run afterFind", func() {
@@ -187,7 +187,7 @@ func TestCollection(t *testing.T) {
 				"name": "foo",
 			}, newDoc)
 			So(err, ShouldEqual, nil)
-			So(newDoc.Id.Hex(), ShouldEqual, doc.Id.Hex())
+			So(newDoc.ID.Hex(), ShouldEqual, doc.ID.Hex())
 			So(newDoc.RanAfterFind, ShouldEqual, true)
 		})
 
@@ -237,7 +237,7 @@ func TestCollection(t *testing.T) {
 			So(err, ShouldEqual, nil)
 
 			err = conn.Collection("tests").DeleteOne(bson.M{
-				"_id": doc.Id,
+				"_id": doc.ID,
 			})
 			So(err, ShouldEqual, nil)
 
@@ -254,7 +254,7 @@ func TestCollection(t *testing.T) {
 			So(err, ShouldEqual, nil)
 
 			info, err := conn.Collection("tests").Delete(bson.M{
-				"_id": doc.Id,
+				"_id": doc.ID,
 			})
 			So(err, ShouldEqual, nil)
 			So(info.Removed, ShouldEqual, 1)
