@@ -9,12 +9,12 @@ import (
 )
 
 type noHookDocument struct {
-	DocumentBase `bson:",inline"`
-	Name         string
+	DocumentModel `bson:",inline" coll:"test"`
+	Name          string
 }
 
 type hookedDocument struct {
-	DocumentBase    `bson:",inline"`
+	DocumentModel   `bson:",inline"`
 	RanBeforeSave   bool
 	RanAfterSave    bool
 	RanBeforeDelete bool
@@ -53,8 +53,8 @@ func (h *hookedDocument) AfterFind(c *Collection) error {
 }
 
 type validatedDocument struct {
-	DocumentBase `bson:",inline"`
-	Name         string
+	DocumentModel `bson:",inline"`
+	Name          string
 }
 
 func (v *validatedDocument) Validate(c *Collection) []error {

@@ -10,14 +10,14 @@ import (
 )
 
 type Parent struct {
-	DocumentBase `bson:",inline"`
-	Bar          string
-	Number       int
-	FooBar       string
-	Children     []ChildRef
-	Child        ChildRef
-	ChildProp    string `bson:"childProp"`
-	diffTracker  *DiffTracker
+	DocumentModel `bson:",inline"`
+	Bar           string
+	Number        int
+	FooBar        string
+	Children      []ChildRef
+	Child         ChildRef
+	ChildProp     string `bson:"childProp"`
+	diffTracker   *DiffTracker
 }
 
 func (f *Parent) GetDiffTracker() *DiffTracker {
@@ -30,12 +30,12 @@ func (f *Parent) GetDiffTracker() *DiffTracker {
 }
 
 type Child struct {
-	DocumentBase `bson:",inline"`
-	ParentID     bson.ObjectId `bson:",omitempty"`
-	Name         string
-	SubChild     SubChildRef `bson:"subChild"`
-	ChildProp    string
-	diffTracker  *DiffTracker
+	DocumentModel `bson:",inline"`
+	ParentID      bson.ObjectId `bson:",omitempty"`
+	Name          string
+	SubChild      SubChildRef `bson:"subChild"`
+	ChildProp     string
+	diffTracker   *DiffTracker
 }
 
 func (c *Child) GetCascade(collection *Collection) []*CascadeConfig {
@@ -51,7 +51,7 @@ func (c *Child) GetCascade(collection *Collection) []*CascadeConfig {
 		Properties:  []string{"_id", "name", "subChild.foo", "subChild._id"},
 		Data:        ref,
 		ThroughProp: "child",
-		RelType:     REL_ONE,
+		RelType:     RelOne,
 		Query: bson.M{
 			"_id": c.ParentID,
 		},
@@ -63,7 +63,7 @@ func (c *Child) GetCascade(collection *Collection) []*CascadeConfig {
 		Data: map[string]interface{}{
 			"childProp": c.ChildProp,
 		},
-		RelType: REL_ONE,
+		RelType: RelOne,
 		Query: bson.M{
 			"_id": c.ParentID,
 		},
@@ -74,7 +74,7 @@ func (c *Child) GetCascade(collection *Collection) []*CascadeConfig {
 		Properties:  []string{"_id", "name", "subChild.foo", "subChild._id"},
 		Data:        ref,
 		ThroughProp: "children",
-		RelType:     REL_MANY,
+		RelType:     RelMany,
 		Query: bson.M{
 			"_id": c.ParentID,
 		},
@@ -107,9 +107,9 @@ func (c *Child) GetDiffTracker() *DiffTracker {
 }
 
 type SubChild struct {
-	DocumentBase `bson:",inline"`
-	Foo          string
-	ChildID      bson.ObjectId
+	DocumentModel `bson:",inline"`
+	Foo           string
+	ChildID       bson.ObjectId
 }
 
 func (c *SubChild) GetCascade(collection *Collection) []*CascadeConfig {
@@ -123,7 +123,7 @@ func (c *SubChild) GetCascade(collection *Collection) []*CascadeConfig {
 		Properties:  []string{"_id", "foo"},
 		Data:        ref,
 		ThroughProp: "subChild",
-		RelType:     REL_ONE,
+		RelType:     RelOne,
 		Query: bson.M{
 			"_id": c.ChildID,
 		},

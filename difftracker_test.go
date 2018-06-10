@@ -1,19 +1,20 @@
 package bongo
 
 import (
-	. "github.com/smartystreets/goconvey/convey"
 	"reflect"
 	"testing"
 	"time"
+
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 type FooChangeTest struct {
-	DocumentBase `bson:",inline"`
-	StringVal    string
-	IntVal       int
-	Timestamp    time.Time
-	diffTracker  *DiffTracker
-	Arr          []string
+	DocumentModel `bson:",inline"`
+	StringVal     string
+	IntVal        int
+	Timestamp     time.Time
+	diffTracker   *DiffTracker
+	Arr           []string
 }
 
 func (f *FooChangeTest) GetDiffTracker() *DiffTracker {

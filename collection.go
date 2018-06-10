@@ -58,17 +58,6 @@ type TimeModifiedTracker interface {
 	SetModified(time.Time)
 }
 
-// Document ...
-type Document interface {
-	GetID() bson.ObjectId
-	SetID(bson.ObjectId)
-}
-
-// CascadingDocument ...
-type CascadingDocument interface {
-	GetCascade(*Collection) []*CascadeConfig
-}
-
 // Collection ...
 type Collection struct {
 	Name       string
@@ -83,9 +72,6 @@ type NewTracker interface {
 	IsNew() bool
 }
 
-// DocumentNotFoundError ...
-type DocumentNotFoundError struct{}
-
 func (v *ValidationError) Error() string {
 	errs := make([]string, len(v.Errors))
 
@@ -93,10 +79,6 @@ func (v *ValidationError) Error() string {
 		errs[i] = e.Error()
 	}
 	return "Validation failed. (" + strings.Join(errs, ", ") + ")"
-}
-
-func (d DocumentNotFoundError) Error() string {
-	return "Document not found"
 }
 
 // Collection ...

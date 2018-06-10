@@ -12,8 +12,8 @@ import (
 
 // Relation types (one-to-many or one-to-one)
 const (
-	REL_MANY = iota
-	REL_ONE  = iota
+	RelMany = iota
+	RelOne  = iota
 )
 
 // ReferenceField ...
@@ -118,7 +118,7 @@ func CascadeDelete(collection *Collection, doc interface{}) {
 func cascadeDeleteWithConfig(conf *CascadeConfig) (*mgo.ChangeInfo, error) {
 
 	switch conf.RelType {
-	case REL_ONE:
+	case RelOne:
 		update := map[string]map[string]interface{}{
 			"$set": map[string]interface{}{},
 		}
@@ -132,7 +132,7 @@ func cascadeDeleteWithConfig(conf *CascadeConfig) (*mgo.ChangeInfo, error) {
 		}
 
 		return conf.Collection.Collection().UpdateAll(conf.Query, update)
-	case REL_MANY:
+	case RelMany:
 		update := map[string]map[string]interface{}{
 			"$pull": map[string]interface{}{},
 		}
@@ -155,7 +155,7 @@ func cascadeSaveWithConfig(conf *CascadeConfig, doc Document) (*mgo.ChangeInfo, 
 	data := conf.Data
 
 	switch conf.RelType {
-	case REL_ONE:
+	case RelOne:
 		if len(conf.OldQuery) > 0 {
 
 			update1 := map[string]map[string]interface{}{
@@ -189,7 +189,7 @@ func cascadeSaveWithConfig(conf *CascadeConfig, doc Document) (*mgo.ChangeInfo, 
 
 		// Just update
 		return conf.Collection.Collection().UpdateAll(conf.Query, update)
-	case REL_MANY:
+	case RelMany:
 
 		update1 := map[string]map[string]interface{}{
 			"$pull": map[string]interface{}{},
