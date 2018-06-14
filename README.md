@@ -1,35 +1,27 @@
+# This is a fork 
+Actually this fork is in active development phase and it could not be usable yet.
+If you are searching for the original library follow [this link](https://github.com/go-bongo/bongo). 
+
 # What's Bongo?
 We couldn't find a good ODM for MongoDB written in Go, so we made one. Bongo is a wrapper for mgo (https://github.com/globalsign/mgo) that adds ODM, hooks, validation, and cascade support to its raw Mongo functions.
 
 Bongo is tested using the fantasic GoConvey (https://github.com/smartystreets/goconvey)
 
-[![Build Status](https://travis-ci.org/go-bongo/bongo.svg)](https://travis-ci.org/go-bongo/bongo)
+<!-- [![Build Status](https://travis-ci.org/go-bongo/bongo.svg)](https://travis-ci.org/go-bongo/bongo)
 
-[![Coverage Status](https://coveralls.io/repos/go-bongo/bongo/badge.svg)](https://coveralls.io/r/go-bongo/bongo)
-
-# Stablity
-
-Since we're not yet at a major release, some things in the API might change. Here's a list:
-
-* Save - stable
-* Find/FindOne/FindByID - stable
-* Delete - stable
-* Save/Delete/Find/Validation hooks - stable
-* Cascade - unstable (might need a refactor)
-* Change Tracking - stable
-* Validation methods - stable
+[![Coverage Status](https://coveralls.io/repos/go-bongo/bongo/badge.svg)](https://coveralls.io/r/go-bongo/bongo) -->
 
 # Usage
 
 ## Basic Usage
 ### Import the Library
-`go get github.com/go-bongo/bongo`
+`go get github.com/goonode/bongo`
 
-`import "github.com/go-bongo/bongo"`
+`import "github.com/goonode/bongo"`
 
 And install dependencies:
 
-`cd $GOHOME/src/github.com/go-bongo/bongo && go get .`
+`cd $GOHOME/src/github.com/goonode/bongo && go get .`
 
 ### Connect to a Database
 
@@ -56,16 +48,25 @@ If you need to, you can access the raw `mgo` session with `connection.Session`
 
 ### Create a Document
 
-Any struct can be used as a document as long as it satisfies the `Document` interface (`SetID(bson.ObjectId)`, `GetID() bson.ObjectId`). We recommend that you use the `DocumentBase` provided with Bongo, which implements that interface as well as the `NewTracker`, `TimeCreatedTracker` and `TimeModifiedTracker` interfaces (to keep track of new/existing documents and created/modified timestamps). If you use the `DocumentBase` or something similar, make sure you use `bson:",inline"` otherwise you will get nested behavior when the data goes to your database.
+Any struct can be used as a document as long as it embed the `DocumentModel` struct. The `DocumentModel` provided with Bongo implements the `Document` interface as well as the `NewTracker`, `TimeCreatedTracker` and `TimeModifiedTracker` interfaces (to keep track of new/existing documents and created/modified timestamps). 
+The `DocumentModel`  must be embeded with `bson:",inline"` tag otherwise you will get nested behavior when the data goes to your database. The recommended way to define a new document model is by calling the `NewDocumentModel` function. This function provides all steps to correctly configure the document model, while it will panic if something goes wrong. 
+Each new document model also requires the `coll:` tag which will be used to assign the model to a mongo collection. 
+Finally the `idx:` tag can be used to create indexes (the index feature is in development stage and very limited at the moment)
+
 
 For example:
 
 ```go
 type Person struct {
-	bongo.DocumentBase `bson:",inline"`
+	bongo.DocumentModel `bson:",inline" coll:"user-coll"`
 	FirstName string
 	LastName string
 	Gender string
+}
+
+func main() {
+	Person := NewDocumentModel(Person{}).(*Person)
+	...
 }
 ```
 
@@ -73,7 +74,7 @@ You can use child structs as well.
 
 ```go
 type Person struct {
-	bongo.DocumentBase `bson:",inline"`
+	bongo.DocumentModel `bson:",inline" coll:"user-coll"`
 	FirstName string
 	LastName string
 	Gender string
@@ -84,6 +85,34 @@ type Person struct {
 		State string
 		Zip string
 	}
+}
+
+func main() {
+	Person := NewDocumentModel(Person{}).(*Person)
+	...
+}
+```
+
+Index definition.
+
+```go
+type Person struct {
+	bongo.DocumentModel `bson:",inline" coll:"user-coll"`
+	FirstName string	`idx:"{firstname},unique"`
+	LastName string		`idx:"{lastname},unique"`
+	Gender string
+	HomeAddress struct {
+		Street string
+		Suite string
+		City string
+		State string
+		Zip string
+	}
+}
+
+func main() {
+	Person := NewDocumentModel(Person{}).(*Person)
+	...
 }
 ```
 
