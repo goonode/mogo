@@ -5,13 +5,30 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
 )
+
+// Model ...
+type Model interface {
+	// Collection
+
+	GetCollName() string
+	SetCollName(name string)
+
+	// Indexes
+
+	GetParsedIndex(name string) []ParsedIndex
+	GetAllParsedIndex() map[string][]ParsedIndex
+	GetIndex(name string) []*mgo.Index
+	GetAllIndex() []*mgo.Index
+}
 
 // Document ...
 type Document interface {
 	GetID() bson.ObjectId
 	SetID(bson.ObjectId)
+	Model
 }
 
 // CascadingDocument ...
@@ -28,8 +45,15 @@ type DocumentModel struct {
 	Created  time.Time     `bson:"_created" json:"_created"`
 	Modified time.Time     `bson:"_modified" json:"_modified"`
 
+	// Model internal data
+	collection string
+	index      map[string][]ParsedIndex
+	modelType  reflect.Type
+
+	// Model lifecycle flags
 	// We want this to default to false without any work. So this will be the opposite of isNew. We want it to be new unless set to existing
-	exists bool
+	exists      bool
+	initialized bool
 }
 
 // SetIsNew satisfies the new tracker interface
@@ -67,47 +91,173 @@ func (d *DocumentModel) SetModified(t time.Time) {
 	d.Modified = t
 }
 
+// The Model interface implementation
+
 // GetModified gets the modified date
 func (d *DocumentModel) GetModified() time.Time {
 	return d.Modified
 }
 
-// GetCollectionName return the value of the coll tag field if exists
-func (d *DocumentModel) GetCollectionName(doc interface{}) string {
-	v := reflect.ValueOf(doc).Elem()
-
-	for i := 0; i < v.NumField(); i++ {
-		fmt.Println(v.Field(i).Type().Name())
-		if v.Field(i).Type().Name() == "DocumentModel" {
-			fInfo := v.Type().Field(i)
-			tag := fInfo.Tag
-			coll := tag.Get("coll")
-			return coll
-		}
+// GetCollName implementation for the Model interface
+func (d *DocumentModel) GetCollName() string {
+	if !d.initialized {
+		panic("This document model is not initialized. Call NewDocumentModel on type first")
 	}
 
-	panic("Document model does not have a collection. Use DocumentModel and coll tag to define one")
+	return d.collection
 }
 
-// GetIndexedFields return a []string of the indexed field suitable to
-// be used with EnsureIndexKey method  of mgo
-func (d *DocumentModel) GetIndexedFields(doc interface{}) []string {
-	v := reflect.ValueOf(doc).Elem()
+// GetParsedIndex return the index stored with the passed field name
+func (d *DocumentModel) GetParsedIndex(name string) []ParsedIndex {
+	if !d.initialized {
+		panic("This document model is not initialized. Call NewDocumentModel on type first")
+	}
+
+	return d.index[name]
+}
+
+// GetAllParsedIndex return all stored parsed indexes
+func (d *DocumentModel) GetAllParsedIndex() map[string][]ParsedIndex {
+	if !d.initialized {
+		panic("This document model is not initialized. Call NewDocumentModel on type first")
+	}
+
+	return d.index
+}
+
+// GetIndex return the mgo.Index struct required to mgo.EnsureIndex method
+// using the ParsedIndex information stored for passed field name.
+// TODO: discard bad formatted indexes
+func (d *DocumentModel) GetIndex(name string) []*mgo.Index {
+	mi := []*mgo.Index{}
+
+	if pi := d.GetParsedIndex(name); pi != nil {
+		for i := range pi {
+			mi = append(mi, BuildIndex(pi[i]))
+		}
+		return mi
+	}
+
+	return nil
+}
+
+// GetAllIndex return the mgo.Index struct required to mgo.EnsureIndex method
+// using the ParsedIndex information stored in the index map of the Model.
+// TODO: discard bad formatted indexes
+func (d *DocumentModel) GetAllIndex() []*mgo.Index {
+	mi := []*mgo.Index{}
+
+	if mpi := d.GetAllParsedIndex(); mpi != nil {
+		for _, v := range mpi {
+			for i := range v {
+				mi = append(mi, BuildIndex(v[i]))
+			}
+		}
+		return mi
+	}
+
+	return nil
+}
+
+// SetCollName implementation for Model interface (why may you need to change collection name ?)
+func (d *DocumentModel) SetCollName(name string) {
+	if !d.initialized {
+		panic("This document model is not initialized. Call NewDocumentModel on type first")
+	}
+
+	d.collection = name
+}
+
+func initializeModel(t reflect.Type, v reflect.Value) (map[string][]ParsedIndex, string) {
+	var coll = ""
+	var pi = make(map[string][]ParsedIndex, 0)
 
 	for i := 0; i < v.NumField(); i++ {
-		fmt.Println(v.Field(i).Type().Name())
-		if v.Field(i).Type().Name() == "DocumentModel" {
-			fInfo := v.Type().Field(i)
-			tag := fInfo.Tag
-			idx := tag.Get("idx")
-			idx = tag.Get("idx")
-			fmt.Println(idx)
-
-			return nil
+		f := v.Field(i)
+		ft := t.Field(i)
+		n := "_" + ft.Name
+		switch ft.Type.Kind() {
+		case reflect.Map:
+			f.Set(reflect.MakeMap(ft.Type))
+			pi[n] = IndexScan(ft.Tag.Get("idx"))
+		case reflect.Slice:
+			f.Set(reflect.MakeSlice(ft.Type, 0, 0))
+			pi[n] = IndexScan(ft.Tag.Get("idx"))
+		case reflect.Chan:
+			f.Set(reflect.MakeChan(ft.Type, 0))
+			pi[n] = IndexScan(ft.Tag.Get("idx"))
+		case reflect.Struct:
+			if ft.Type.ConvertibleTo(reflect.TypeOf(DocumentModel{})) {
+				coll = ft.Tag.Get("coll")
+				pi[ft.Type.Name()] = IndexScan(ft.Tag.Get("idx"))
+				break
+			}
+			rpi, _ := initializeModel(ft.Type, f)
+			for k, v := range rpi {
+				nn := n + k
+				pi[nn] = v
+			}
+		case reflect.Ptr:
+			fv := reflect.New(ft.Type.Elem())
+			rpi, _ := initializeModel(ft.Type.Elem(), fv.Elem())
+			for k, v := range rpi {
+				nn := n + k
+				pi[nn] = v
+			}
+			f.Set(fv)
+		default:
+			pi[n] = IndexScan(ft.Tag.Get("idx"))
 		}
 	}
 
-	panic("Document model does not have a collection. Use DocumentModel and coll tag to define one")
+	return pi, coll
+}
+
+// NewDocumentModel ...
+func NewDocumentModel(d interface{}) interface{} {
+	t := reflect.TypeOf(d)
+	v := reflect.ValueOf(d)
+	n := t.Name()
+
+	if t.Kind() == reflect.Ptr {
+		t = reflect.Indirect(reflect.ValueOf(d)).Type()
+		v = reflect.ValueOf(d).Elem()
+	}
+	if t.Kind() != reflect.Struct {
+		panic(fmt.Sprintf("Only type struct can be used as document model (passed type %s is not struct)", n))
+	}
+	var DocumentModelIdx = -1
+	for i := 0; i < v.NumField(); i++ {
+		ft := t.Field(i)
+		if ft.Type.ConvertibleTo(reflect.TypeOf(DocumentModel{})) {
+			DocumentModelIdx = i
+			break
+		}
+	}
+
+	if DocumentModelIdx == -1 {
+		panic(fmt.Sprintf("A document model must embed a DocumentModel type field (passed type %s does not have)", n))
+	}
+
+	var coll string
+	var pi map[string][]ParsedIndex
+
+	r := reflect.New(t)
+	pi, coll = initializeModel(t, r.Elem())
+	if coll == "" {
+		panic(fmt.Sprintf("The document model does not have a collection name (passed type %s)", n))
+	}
+	df := r.Elem().Field(DocumentModelIdx)
+	dm := df.Interface().(DocumentModel)
+
+	dm.modelType = t
+	dm.initialized = true
+	dm.collection = coll
+	dm.index = pi
+
+	df.Set(reflect.ValueOf(dm))
+
+	return r.Interface()
 }
 
 func (d DocumentNotFoundError) Error() string {
