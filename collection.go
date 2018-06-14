@@ -143,6 +143,15 @@ func (c *Collection) Save(doc Document) error {
 		tt.SetModified(now)
 	}
 
+	// If the model has indexes we create them here...
+	idxs := doc.GetAllIndex()
+	for i := range idxs {
+		err = col.EnsureIndex(*idxs[i])
+		if err != nil {
+			return err
+		}
+	}
+
 	go CascadeSave(c, doc)
 
 	id := doc.GetID()
