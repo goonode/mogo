@@ -9,7 +9,7 @@ import (
 	"github.com/globalsign/mgo"
 )
 
-var optionKeywords = [...]string{"index", "unique", "sparse", "background", "dropdups"}
+var optionKeywords = [...]string{"unique", "sparse", "background", "dropdups"}
 
 // ParsedIndex contains a parsed index
 type ParsedIndex struct {
@@ -28,8 +28,11 @@ func TrimAllSpaces(src string) string {
 	}, src)
 }
 
-// Scan ...
-func Scan(src string) []ParsedIndex {
+// IndexScan ...
+// TODO:
+// 	add optional parameter to pass the name of the field to be used
+// 	in case of empty {} or if filled name is empty
+func IndexScan(src string) []ParsedIndex {
 	var s scanner.Scanner
 	var parsed []ParsedIndex
 
@@ -61,6 +64,10 @@ func Scan(src string) []ParsedIndex {
 			}
 			p.appendOption(lit)
 		case token.COMMA:
+		case token.COLON:
+			if lb {
+				goto _panic
+			}
 		case token.SEMICOLON:
 			if lb {
 				goto _panic
@@ -84,7 +91,23 @@ _panic:
 // BuildIndex build an mgo Index using the values of a ParsedIndex
 // struct
 func BuildIndex(p ParsedIndex) *mgo.Index {
-	idx := &mgo.Index{}
+	idx := &mgo.Index{
+		Key: p.Fields,
+	}
+
+	for i := range p.Options {
+		switch p.Options[i] {
+		case "unique":
+			idx.Unique = true
+		case "dropdups":
+			idx.DropDups = true
+		case "background":
+			idx.Background = true
+		case "sparse":
+			idx.Sparse = true
+		}
+	}
+
 	return idx
 }
 
