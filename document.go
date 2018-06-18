@@ -1,6 +1,7 @@
 package bongo
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"time"
@@ -15,6 +16,7 @@ type Model interface {
 
 	GetCollName() string
 	SetCollName(name string)
+	GetCollection() *Collection
 
 	// Indexes
 
@@ -22,13 +24,25 @@ type Model interface {
 	GetAllParsedIndex() map[string][]ParsedIndex
 	GetIndex(name string) []*mgo.Index
 	GetAllIndex() []*mgo.Index
+
+	// Connection
+
+	GetConnection() *Connection
+	SetConnection(c *Connection)
+
+	// Model
+
+	CloneModel() DocumentModel
+	RestoreModel(d DocumentModel)
 }
 
 // Document ...
 type Document interface {
+	Model
 	GetID() bson.ObjectId
 	SetID(bson.ObjectId)
-	Model
+
+	MakeAsNew()
 }
 
 // CascadingDocument ...
@@ -46,14 +60,17 @@ type DocumentModel struct {
 	Modified time.Time     `bson:"_modified" json:"_modified"`
 
 	// Model internal data
-	collection string
-	index      map[string][]ParsedIndex
-	modelType  reflect.Type
+	collection string                   `bson:"-"`
+	index      map[string][]ParsedIndex `bson:"-"`
+	modelType  reflect.Type             `bson:"-"`
+
+	// Connection
+	connection *Connection `bson:"-"`
 
 	// Model lifecycle flags
 	// We want this to default to false without any work. So this will be the opposite of isNew. We want it to be new unless set to existing
-	exists      bool
-	initialized bool
+	exists      bool `bson:"-"`
+	initialized bool `bson:"-"`
 }
 
 // SetIsNew satisfies the new tracker interface
@@ -74,6 +91,13 @@ func (d *DocumentModel) GetID() bson.ObjectId {
 // SetID sets the ID for the document
 func (d *DocumentModel) SetID(id bson.ObjectId) {
 	d.ID = id
+}
+
+// MakeAsNew assign a new ID to the current document so it can
+// be considered as a new document.
+func (d *DocumentModel) MakeAsNew() {
+	d.ID = bson.NewObjectId()
+	d.SetIsNew(true)
 }
 
 // SetCreated sets the created date
@@ -105,6 +129,24 @@ func (d *DocumentModel) GetCollName() string {
 	}
 
 	return d.collection
+}
+
+// SetCollName implementation for Model interface (why may you need to change collection name ?)
+func (d *DocumentModel) SetCollName(name string) {
+	if !d.initialized {
+		panic("This document model is not initialized. Call NewDocumentModel on type first")
+	}
+
+	d.collection = name
+}
+
+// GetCollection implementation for Model interface (why may you need to change collection name ?)
+func (d *DocumentModel) GetCollection() *Collection {
+	if !d.initialized {
+		panic("This document model is not initialized. Call NewDocumentModel on type first")
+	}
+
+	return d.connection.Collection(d.collection)
 }
 
 // GetParsedIndex return the index stored with the passed field name
@@ -159,13 +201,97 @@ func (d *DocumentModel) GetAllIndex() []*mgo.Index {
 	return nil
 }
 
-// SetCollName implementation for Model interface (why may you need to change collection name ?)
-func (d *DocumentModel) SetCollName(name string) {
+// SetConnection ...
+func (d *DocumentModel) SetConnection(c *Connection) {
 	if !d.initialized {
 		panic("This document model is not initialized. Call NewDocumentModel on type first")
 	}
 
-	d.collection = name
+	d.connection = c
+}
+
+// GetConnection ...
+func (d *DocumentModel) GetConnection() *Connection {
+	if !d.initialized {
+		panic("This document model is not initialized. Call NewDocumentModel on type first")
+	}
+
+	return d.connection
+}
+
+// CloneModel is used to clone the DocumentModel struct of the document
+func (d *DocumentModel) CloneModel() DocumentModel {
+	if !d.initialized {
+		panic("This document model is not initialized. Call NewDocumentModel on type first")
+	}
+
+	newDocumentModel := DocumentModel{
+		collection:  d.collection,
+		initialized: d.initialized,
+		exists:      d.exists,
+		modelType:   d.modelType,
+		index:       map[string][]ParsedIndex{},
+		connection:  d.connection,
+	}
+
+	for k, v := range d.index {
+		newDocumentModel.index[k] = v
+	}
+
+	return newDocumentModel
+}
+
+// RestoreModel is used to restore the DocumentModel struct
+func (d *DocumentModel) RestoreModel(o DocumentModel) {
+	d.collection = o.collection
+	d.initialized = o.initialized
+	d.exists = o.exists
+	d.modelType = o.modelType
+	d.connection = o.connection
+
+	d.index = map[string][]ParsedIndex{}
+	for k, v := range o.index {
+		d.index[k] = v
+	}
+}
+
+// Helpers functions
+
+// Save ...
+func Save(doc interface{}) error {
+	if d, ok := doc.(Document); ok {
+		return d.GetCollection().Save(d)
+	}
+
+	return errors.New("passed document does not implement Document interface")
+}
+
+// Find ...
+func Find(doc Model, query interface{}) *ResultSet {
+	if d, ok := doc.(Document); ok {
+		return d.GetCollection().Find(query)
+	}
+
+	return nil
+}
+
+// FindByID ...
+func FindByID(doc Document, id bson.ObjectId) error {
+	return doc.GetCollection().FindByID(id, doc)
+}
+
+// FindOne ...
+func FindOne(doc Document, query interface{}) error {
+	return doc.GetCollection().FindOne(query, doc)
+}
+
+// DeleteDocument ...
+func DeleteDocument(doc Document) error {
+	return doc.GetCollection().DeleteDocument(doc)
+}
+
+func (d DocumentNotFoundError) Error() string {
+	return "Document not found"
 }
 
 func initializeModel(t reflect.Type, v reflect.Value) (map[string][]ParsedIndex, string) {
@@ -214,7 +340,7 @@ func initializeModel(t reflect.Type, v reflect.Value) (map[string][]ParsedIndex,
 }
 
 // NewDocumentModel ...
-func NewDocumentModel(d interface{}) interface{} {
+func NewDocumentModel(d interface{}, c *Connection) interface{} {
 	t := reflect.TypeOf(d)
 	v := reflect.ValueOf(d)
 	n := t.Name()
@@ -254,12 +380,9 @@ func NewDocumentModel(d interface{}) interface{} {
 	dm.initialized = true
 	dm.collection = coll
 	dm.index = pi
+	dm.connection = c
 
 	df.Set(reflect.ValueOf(dm))
 
 	return r.Interface()
-}
-
-func (d DocumentNotFoundError) Error() string {
-	return "Document not found"
 }

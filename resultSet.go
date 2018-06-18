@@ -26,7 +26,7 @@ type PaginationInfo struct {
 }
 
 // Next ...
-func (r *ResultSet) Next(doc interface{}) bool {
+func (r *ResultSet) Next(doc Model) bool {
 
 	// Check if the iter has been instantiated yet
 	if !r.loadedIter {
@@ -34,10 +34,11 @@ func (r *ResultSet) Next(doc interface{}) bool {
 		r.loadedIter = true
 	}
 
+	dm := doc.CloneModel()
 	gotResult := r.Iter.Next(doc)
+	doc.RestoreModel(dm)
 
 	if gotResult {
-
 		if hook, ok := doc.(AfterFindHook); ok {
 			err := hook.AfterFind(r.Collection)
 			if err != nil {

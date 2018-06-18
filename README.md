@@ -49,7 +49,7 @@ If you need to, you can access the raw `mgo` session with `connection.Session`
 ### Create a Document
 
 Any struct can be used as a document as long as it embed the `DocumentModel` struct. The `DocumentModel` provided with Bongo implements the `Document` interface as well as the `NewTracker`, `TimeCreatedTracker` and `TimeModifiedTracker` interfaces (to keep track of new/existing documents and created/modified timestamps). 
-The `DocumentModel`  must be embeded with `bson:",inline"` tag otherwise you will get nested behavior when the data goes to your database. The recommended way to define a new document model is by calling the `NewDocumentModel` function. This function provides all steps to correctly configure the document model, while it will panic if something goes wrong. 
+The `DocumentModel`  must be embeded with `bson:",inline"` tag otherwise you will get nested behavior when the data goes to your database. The recommended way to define a new document model is by calling the `NewDocumentModel` function. This function provides all steps to correctly configure the document model, while it will panic if something goes wrong. Also you can pass to the `NewDocumentModel` func a `*bongo.Connection` to bind the document to a connection to mongodb.
 Each new document model also requires the `coll:` tag which will be used to assign the model to a mongo collection. 
 Finally the `idx:` tag can be used to create indexes (the index feature is in development stage and very limited at the moment)
 
@@ -65,7 +65,7 @@ type Person struct {
 }
 
 func main() {
-	Person := NewDocumentModel(Person{}).(*Person)
+	Person := NewDocumentModel(Person{}, nil).(*Person)
 	...
 }
 ```
@@ -88,7 +88,7 @@ type Person struct {
 }
 
 func main() {
-	Person := NewDocumentModel(Person{}).(*Person)
+	Person := NewDocumentModel(Person{}, nil).(*Person)
 	...
 }
 ```
@@ -111,7 +111,7 @@ type Person struct {
 }
 
 func main() {
-	Person := NewDocumentModel(Person{}).(*Person)
+	Person := NewDocumentModel(Person{}, nil).(*Person)
 	...
 }
 ```
@@ -129,18 +129,19 @@ You can add special methods to your document type that will automatically get ca
 
 ### Saving Models
 
-Just call `save` on a collection instance.
+Just call `Save` helper func on a `DocumentModel` instance. 
+The `DocumentModel` must have a connection binded to it before calling `Save`
 
 ```go
-myPerson := &Person{
-	FirstName:"Testy",
-	LastName:"McGee",
-	Gender:"male",
-}
-err := connection.Collection("people").Save(myPerson)
+myPerson := NewDocumentModel(Person{}, connection).(*Person)
+myPerson.FirstName = "Bingo"
+myPerson.LastName = "Bongo"
+
+err := Save(myPerson)
 ```
 
-Now you'll have a new document in the `people` collection. If there is an error, you can check if it is a validation error using a type assertion:
+Now you'll have a new document in the collection `user-coll` as defined into the Person model. 
+If there is an error, you can check if it is a validation error using a type assertion:
 
 ```go
 if vErr, ok := err.(*bongo.ValidationError); ok {
@@ -149,7 +150,7 @@ if vErr, ok := err.(*bongo.ValidationError); ok {
 	fmt.Println("Got a real error:", err.Error())
 }
 ```
-
+<!-- 
 ### Deleting Documents
 
 There are three ways to delete a document.
@@ -386,4 +387,4 @@ This does the following:
 
 4. When you delete a child, it will also use `cascadeMulti.OldQuery` to remove the reference from its previous `parent.children`
 
-Note that the `ThroughProp` must be the actual field name in the database (bson tag), not the property name on the struct. If there is no `ThroughProp`, the data will be cascaded directly onto the root of the document.
+Note that the `ThroughProp` must be the actual field name in the database (bson tag), not the property name on the struct. If there is no `ThroughProp`, the data will be cascaded directly onto the root of the document. -->

@@ -33,14 +33,14 @@ type DocumentWithModelAndIdx struct {
 
 func TestNewDocument(t *testing.T) {
 	Convey("should create a new document if document is valid or panic if document is invalid", t, func() {
-		So(func() { _ = NewDocumentModel(BadDocument{}) }, ShouldPanic)
-		So(func() { _ = NewDocumentModel(DocumentWithModel{}).(*DocumentWithModel) }, ShouldNotPanic)
+		So(func() { _ = NewDocumentModel(BadDocument{}, nil) }, ShouldPanic)
+		So(func() { _ = NewDocumentModel(DocumentWithModel{}, nil).(*DocumentWithModel) }, ShouldNotPanic)
 	})
 }
 
 func TestGetParsedIndex(t *testing.T) {
 	Convey("should return the parsed indexes as defined in idx tag", t, func() {
-		doc := NewDocumentModel(DocumentWithModelAndIdx{}).(*DocumentWithModelAndIdx)
+		doc := NewDocumentModel(DocumentWithModelAndIdx{}, nil).(*DocumentWithModelAndIdx)
 		pi := doc.GetParsedIndex("_Name")
 		So(pi, ShouldResemble, []ParsedIndex{
 			ParsedIndex{[]string{"name"}, []string{"unique", "sparse"}}})
@@ -57,7 +57,7 @@ func TestGetParsedIndex(t *testing.T) {
 
 func TestGetIndex(t *testing.T) {
 	Convey("should return a  []*mgo.Index from the []ParsedIndex built from idx tag of the Name field", t, func() {
-		doc := NewDocumentModel(DocumentWithModelAndIdx{}).(*DocumentWithModelAndIdx)
+		doc := NewDocumentModel(DocumentWithModelAndIdx{}, nil).(*DocumentWithModelAndIdx)
 		idx := doc.GetIndex("_Name")
 		So(len(idx), ShouldBeGreaterThan, 0)
 		mi := &mgo.Index{
@@ -71,7 +71,7 @@ func TestGetIndex(t *testing.T) {
 
 func TestGetAllIndex(t *testing.T) {
 	Convey("should return a []*mgo.Index from the []ParsedIndex built from idx tags of all fields", t, func() {
-		doc := NewDocumentModel(DocumentWithModelAndIdx{}).(*DocumentWithModelAndIdx)
+		doc := NewDocumentModel(DocumentWithModelAndIdx{}, nil).(*DocumentWithModelAndIdx)
 		idx := doc.GetAllIndex()
 		So(len(idx), ShouldBeGreaterThan, 0)
 		mi := &mgo.Index{

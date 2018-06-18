@@ -234,7 +234,7 @@ func (c *Collection) Find(query interface{}) *ResultSet {
 }
 
 // FindOne ...
-func (c *Collection) FindOne(query interface{}, doc interface{}) error {
+func (c *Collection) FindOne(query interface{}, doc Model) error {
 
 	// Now run a find
 	results := c.Find(query)

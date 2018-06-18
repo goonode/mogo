@@ -71,7 +71,7 @@ func TestCollection(t *testing.T) {
 	Convey("Saving", t, func() {
 		Convey("should be able to save a document with no hooks, update id, and use new tracker", func() {
 
-			doc := NewDocumentModel(noHookDocument{}).(*noHookDocument)
+			doc := NewDocumentModel(noHookDocument{}, conn).(*noHookDocument)
 			doc.Name = "foo"
 			So(doc.IsNew(), ShouldEqual, true)
 
@@ -82,7 +82,7 @@ func TestCollection(t *testing.T) {
 		})
 
 		Convey("should be able to save a document with save hooks", func() {
-			doc := NewDocumentModel(hookedDocument{}).(*hookedDocument)
+			doc := NewDocumentModel(hookedDocument{}, conn).(*hookedDocument)
 			err := conn.Collection(doc.GetCollName()).Save(doc)
 
 			So(err, ShouldEqual, nil)
@@ -91,7 +91,7 @@ func TestCollection(t *testing.T) {
 		})
 
 		Convey("should return a validation error if the validate method has things in the return value", func() {
-			doc := NewDocumentModel(validatedDocument{}).(*validatedDocument)
+			doc := NewDocumentModel(validatedDocument{}, conn).(*validatedDocument)
 			err := conn.Collection(doc.GetCollName()).Save(doc)
 
 			v, ok := err.(*ValidationError)
@@ -100,7 +100,7 @@ func TestCollection(t *testing.T) {
 		})
 
 		Convey("should be able to save an existing document", func() {
-			doc := NewDocumentModel(noHookDocument{}).(*noHookDocument)
+			doc := NewDocumentModel(noHookDocument{}, conn).(*noHookDocument)
 			doc.Name = "foo"
 			So(doc.IsNew(), ShouldEqual, true)
 
@@ -119,7 +119,7 @@ func TestCollection(t *testing.T) {
 
 		Convey("should set created and modified dates", func() {
 
-			doc := NewDocumentModel(noHookDocument{}).(*noHookDocument)
+			doc := NewDocumentModel(noHookDocument{}, conn).(*noHookDocument)
 			doc.Name = "foo"
 
 			err := conn.Collection(doc.GetCollName()).Save(doc)
@@ -137,19 +137,19 @@ func TestCollection(t *testing.T) {
 	})
 
 	Convey("FindByID", t, func() {
-		doc := NewDocumentModel(noHookDocument{}).(*noHookDocument)
+		doc := NewDocumentModel(noHookDocument{}, conn).(*noHookDocument)
 		err := conn.Collection(doc.GetCollName()).Save(doc)
 		So(err, ShouldEqual, nil)
 
 		Convey("should find a doc by id", func() {
-			newDoc := NewDocumentModel(noHookDocument{}).(*noHookDocument)
+			newDoc := NewDocumentModel(noHookDocument{}, conn).(*noHookDocument)
 			err := conn.Collection(doc.GetCollName()).FindByID(doc.GetID(), newDoc)
 			So(err, ShouldEqual, nil)
 			So(newDoc.ID.Hex(), ShouldEqual, doc.ID.Hex())
 		})
 
 		Convey("should find a doc by id and run afterFind", func() {
-			newDoc := NewDocumentModel(hookedDocument{}).(*hookedDocument)
+			newDoc := NewDocumentModel(hookedDocument{}, conn).(*hookedDocument)
 			err := conn.Collection(doc.GetCollName()).FindByID(doc.GetID(), newDoc)
 			So(err, ShouldEqual, nil)
 			So(newDoc.ID.Hex(), ShouldEqual, doc.ID.Hex())
@@ -169,13 +169,13 @@ func TestCollection(t *testing.T) {
 	})
 
 	Convey("FindOne", t, func() {
-		doc := NewDocumentModel(noHookDocument{}).(*noHookDocument)
+		doc := NewDocumentModel(noHookDocument{}, conn).(*noHookDocument)
 		doc.Name = "foo"
 		err := conn.Collection(doc.GetCollName()).Save(doc)
 		So(err, ShouldEqual, nil)
 
 		Convey("should find one with query", func() {
-			newDoc := NewDocumentModel(noHookDocument{}).(*noHookDocument)
+			newDoc := NewDocumentModel(noHookDocument{}, conn).(*noHookDocument)
 			err := conn.Collection(doc.GetCollName()).FindOne(bson.M{
 				"name": "foo",
 			}, newDoc)
@@ -184,7 +184,7 @@ func TestCollection(t *testing.T) {
 		})
 
 		Convey("should find one with query and run afterFind", func() {
-			newDoc := NewDocumentModel(hookedDocument{}).(*hookedDocument)
+			newDoc := NewDocumentModel(hookedDocument{}, conn).(*hookedDocument)
 			err := conn.Collection(doc.GetCollName()).FindOne(bson.M{
 				"name": "foo",
 			}, newDoc)
@@ -200,7 +200,7 @@ func TestCollection(t *testing.T) {
 
 	Convey("Delete", t, func() {
 		Convey("should be able delete a document", func() {
-			doc := NewDocumentModel(noHookDocument{}).(*noHookDocument)
+			doc := NewDocumentModel(noHookDocument{}, conn).(*noHookDocument)
 			doc.Name = "foo"
 
 			err := conn.Collection(doc.GetCollName()).Save(doc)
@@ -216,7 +216,7 @@ func TestCollection(t *testing.T) {
 		})
 
 		Convey("should be able delete a document and run hooks", func() {
-			doc := NewDocumentModel(hookedDocument{}).(*hookedDocument)
+			doc := NewDocumentModel(hookedDocument{}, conn).(*hookedDocument)
 			doc.Name = "foo"
 			doc.Surname = "bar"
 
@@ -236,7 +236,7 @@ func TestCollection(t *testing.T) {
 		})
 
 		Convey("should be able delete a document with DeleteOne", func() {
-			doc := NewDocumentModel(noHookDocument{}).(*noHookDocument)
+			doc := NewDocumentModel(noHookDocument{}, conn).(*noHookDocument)
 			doc.Name = "foo"
 
 			err := conn.Collection(doc.GetCollName()).Save(doc)
@@ -254,7 +254,7 @@ func TestCollection(t *testing.T) {
 		})
 
 		Convey("should be able delete a document with Delete", func() {
-			doc := NewDocumentModel(noHookDocument{}).(*noHookDocument)
+			doc := NewDocumentModel(noHookDocument{}, conn).(*noHookDocument)
 			doc.Name = "foo"
 
 			err := conn.Collection(doc.GetCollName()).Save(doc)

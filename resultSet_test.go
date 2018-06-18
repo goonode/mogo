@@ -1,29 +1,33 @@
 package bongo
 
 import (
-	. "github.com/smartystreets/goconvey/convey"
-	"github.com/globalsign/mgo/bson"
+	"fmt"
 	"testing"
+
+	"github.com/globalsign/mgo/bson"
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestResultSet(t *testing.T) {
 	conn := getConnection()
-	collection := conn.Collection("tests")
-	defer conn.Session.Close()
+	doc := NewDocumentModel(noHookDocument{}, conn).(*noHookDocument)
+	// collection := conn.Collection("tests")
+	defer doc.connection.Session.Close()
 
 	Convey("Basic find/pagination", t, func() {
 		// Create 10 things
 		for i := 0; i < 10; i++ {
-			doc := &noHookDocument{}
-			collection.Save(doc)
+			doc.Name = fmt.Sprintf("Number_%d", i)
+			Save(doc)
+			doc.MakeAsNew()
 		}
 
 		Convey("should let you iterate through all results without paginating", func() {
-			rset := collection.Find(nil)
+			rset := Find(doc, nil)
 			defer rset.Free()
 			count := 0
 
-			doc := &noHookDocument{}
+			// doc := NewDocumentModel(noHookDocument{}, conn).(*noHookDocument)
 
 			for rset.Next(doc) {
 				count++
@@ -33,7 +37,7 @@ func TestResultSet(t *testing.T) {
 		})
 
 		Convey("should let you paginate and get pagination info", func() {
-			rset := collection.Find(nil)
+			rset := Find(doc, nil)
 			defer rset.Free()
 			info, err := rset.Paginate(3, 1)
 			So(err, ShouldEqual, nil)
@@ -43,7 +47,7 @@ func TestResultSet(t *testing.T) {
 			So(info.PerPage, ShouldEqual, 3)
 			So(info.RecordsOnPage, ShouldEqual, 3)
 
-			rset2 := collection.Find(nil)
+			rset2 := Find(doc, nil)
 			defer rset2.Free()
 			info, err = rset2.Paginate(3, 4)
 			So(err, ShouldEqual, nil)
@@ -62,25 +66,24 @@ func TestResultSet(t *testing.T) {
 	Convey("Find/pagination w/ query", t, func() {
 		// Create 10 things
 		for i := 0; i < 5; i++ {
-			doc := &noHookDocument{}
+			doc := NewDocumentModel(noHookDocument{}, conn).(*noHookDocument)
 			doc.Name = "foo"
-			collection.Save(doc)
+			Save(doc)
 		}
 		for i := 0; i < 5; i++ {
-			doc := &noHookDocument{}
 			doc.Name = "bar"
-			collection.Save(doc)
+			Save(doc)
 		}
 
 		Convey("should let you iterate through all filtered results without paginating", func() {
-			rset := collection.Find(bson.M{
+			rset := Find(doc, bson.M{
 				"name": "foo",
 			})
 			defer rset.Free()
 
 			count := 0
 
-			doc := &noHookDocument{}
+			// doc := &noHookDocument{}
 
 			for rset.Next(doc) {
 				count++
@@ -90,7 +93,7 @@ func TestResultSet(t *testing.T) {
 		})
 
 		Convey("should let you paginate and get pagination info on filtered query", func() {
-			rset := collection.Find(bson.M{
+			rset := Find(doc, bson.M{
 				"name": "foo",
 			})
 			defer rset.Free()
@@ -102,7 +105,7 @@ func TestResultSet(t *testing.T) {
 			So(info.PerPage, ShouldEqual, 3)
 			So(info.RecordsOnPage, ShouldEqual, 3)
 
-			rset2 := collection.Find(bson.M{
+			rset2 := Find(doc, bson.M{
 				"name": "foo",
 			})
 			defer rset2.Free()
@@ -123,16 +126,16 @@ func TestResultSet(t *testing.T) {
 	Convey("hooks", t, func() {
 		// Create 10 things
 		for i := 0; i < 10; i++ {
-			doc := &hookedDocument{}
-			collection.Save(doc)
+			doc := NewDocumentModel(noHookDocument{}, conn).(*noHookDocument)
+			Save(doc)
 		}
 
 		Convey("should let you iterate through all results without paginating", func() {
-			rset := collection.Find(nil)
+			rset := Find(doc, nil)
 			defer rset.Free()
 			count := 0
 
-			doc := &hookedDocument{}
+			doc := NewDocumentModel(hookedDocument{}, conn).(*hookedDocument)
 
 			for rset.Next(doc) {
 				So(doc.RanAfterFind, ShouldEqual, true)
