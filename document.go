@@ -3,6 +3,7 @@ package bongo
 import (
 	"errors"
 	"fmt"
+	"log"
 	"reflect"
 	"time"
 
@@ -25,6 +26,9 @@ type Model interface {
 	GetIndex(name string) []*mgo.Index
 	GetAllIndex() []*mgo.Index
 
+	// Refs
+	GetRefIndex(name string) RefIndex
+
 	// Connection
 
 	GetConnection() *Connection
@@ -32,7 +36,7 @@ type Model interface {
 
 	// Model
 
-	CloneModel() DocumentModel
+	SaveModel() DocumentModel
 	RestoreModel(d DocumentModel)
 }
 
@@ -43,6 +47,11 @@ type Document interface {
 	SetID(bson.ObjectId)
 
 	MakeAsNew()
+}
+
+// RefField ...
+type RefField struct {
+	ID bson.ObjectId `bson:"_id,omitempty" json:"_id"`
 }
 
 // CascadingDocument ...
@@ -62,13 +71,13 @@ type DocumentModel struct {
 	// Model internal data
 	collection string                   `bson:"-"`
 	index      map[string][]ParsedIndex `bson:"-"`
+	refs       map[string]RefIndex      `bson:"-"`
 	modelType  reflect.Type             `bson:"-"`
 
 	// Connection
 	connection *Connection `bson:"-"`
 
 	// Model lifecycle flags
-	// We want this to default to false without any work. So this will be the opposite of isNew. We want it to be new unless set to existing
 	exists      bool `bson:"-"`
 	initialized bool `bson:"-"`
 }
@@ -201,10 +210,19 @@ func (d *DocumentModel) GetAllIndex() []*mgo.Index {
 	return nil
 }
 
+// GetRefIndex return the RefIndex struct for the given field
+func (d *DocumentModel) GetRefIndex(name string) RefIndex {
+	if !d.initialized {
+		panic("This document model is not initialized. Call NewDocument on type first")
+	}
+
+	return d.refs[name]
+}
+
 // SetConnection ...
 func (d *DocumentModel) SetConnection(c *Connection) {
 	if !d.initialized {
-		panic("This document model is not initialized. Call NewDocumentModel on type first")
+		panic("This document model is not initialized. Call NewDocument on type first")
 	}
 
 	d.connection = c
@@ -213,16 +231,19 @@ func (d *DocumentModel) SetConnection(c *Connection) {
 // GetConnection ...
 func (d *DocumentModel) GetConnection() *Connection {
 	if !d.initialized {
-		panic("This document model is not initialized. Call NewDocumentModel on type first")
+		panic("This document model is not initialized. Call NewDocument on type first")
 	}
 
 	return d.connection
 }
 
-// CloneModel is used to clone the DocumentModel struct of the document
-func (d *DocumentModel) CloneModel() DocumentModel {
+// SaveModel is used to save the DocumentModel struct of the document.
+// This is useful after returning from one of a find method where mgo
+// driver return a freshly create zero filled struct.DocumentModel
+// Note: mgo should consider bson "-" tag also on unmarshal
+func (d *DocumentModel) SaveModel() DocumentModel {
 	if !d.initialized {
-		panic("This document model is not initialized. Call NewDocumentModel on type first")
+		panic("This document model is not initialized. Call NewDocument on type first")
 	}
 
 	newDocumentModel := DocumentModel{
@@ -304,14 +325,20 @@ func initializeModel(t reflect.Type, v reflect.Value) (map[string][]ParsedIndex,
 		n := "_" + ft.Name
 		switch ft.Type.Kind() {
 		case reflect.Map:
-			f.Set(reflect.MakeMap(ft.Type))
 			pi[n] = IndexScan(ft.Tag.Get("idx"))
+			if f.CanSet() {
+				f.Set(reflect.MakeMap(ft.Type))
+			}
 		case reflect.Slice:
-			f.Set(reflect.MakeSlice(ft.Type, 0, 0))
 			pi[n] = IndexScan(ft.Tag.Get("idx"))
+			if f.CanSet() {
+				f.Set(reflect.MakeSlice(ft.Type, 0, 0))
+			}
 		case reflect.Chan:
-			f.Set(reflect.MakeChan(ft.Type, 0))
 			pi[n] = IndexScan(ft.Tag.Get("idx"))
+			if f.CanSet() {
+				f.Set(reflect.MakeChan(ft.Type, 0))
+			}
 		case reflect.Struct:
 			if ft.Type.ConvertibleTo(reflect.TypeOf(DocumentModel{})) {
 				coll = ft.Tag.Get("coll")
@@ -324,13 +351,15 @@ func initializeModel(t reflect.Type, v reflect.Value) (map[string][]ParsedIndex,
 				pi[nn] = v
 			}
 		case reflect.Ptr:
-			fv := reflect.New(ft.Type.Elem())
-			rpi, _ := initializeModel(ft.Type.Elem(), fv.Elem())
-			for k, v := range rpi {
-				nn := n + k
-				pi[nn] = v
+			if f.CanSet() {
+				fv := reflect.New(ft.Type.Elem())
+				rpi, _ := initializeModel(ft.Type.Elem(), fv.Elem())
+				for k, v := range rpi {
+					nn := n + k
+					pi[nn] = v
+				}
+				f.Set(fv)
 			}
-			f.Set(fv)
 		default:
 			pi[n] = IndexScan(ft.Tag.Get("idx"))
 		}
@@ -339,50 +368,108 @@ func initializeModel(t reflect.Type, v reflect.Value) (map[string][]ParsedIndex,
 	return pi, coll
 }
 
-// NewDocumentModel ...
-func NewDocumentModel(d interface{}, c *Connection) interface{} {
-	t := reflect.TypeOf(d)
-	v := reflect.ValueOf(d)
-	n := t.Name()
-
-	if t.Kind() == reflect.Ptr {
-		t = reflect.Indirect(reflect.ValueOf(d)).Type()
-		v = reflect.ValueOf(d).Elem()
-	}
-	if t.Kind() != reflect.Struct {
-		panic(fmt.Sprintf("Only type struct can be used as document model (passed type %s is not struct)", n))
-	}
-	var DocumentModelIdx = -1
-	for i := 0; i < v.NumField(); i++ {
-		ft := t.Field(i)
-		if ft.Type.ConvertibleTo(reflect.TypeOf(DocumentModel{})) {
-			DocumentModelIdx = i
-			break
+func getRefIndex(idx int, tag string, fname string) RefIndex {
+	if tag != "" {
+		if modelRegistry.Index(tag) == -1 {
+			panic(fmt.Sprintf("passed ref (%s) does not exist in registry", tag))
+		}
+		return RefIndex{
+			Idx: idx,
+			Ref: tag,
 		}
 	}
 
-	if DocumentModelIdx == -1 {
-		panic(fmt.Sprintf("A document model must embed a DocumentModel type field (passed type %s does not have)", n))
+	panic(fmt.Sprintf("ref tag is missing on RefField field (type: %s)", fname))
+}
+
+func initializeTags(t reflect.Type, v reflect.Value) (map[string][]ParsedIndex, map[string]RefIndex, string) {
+	var coll = ""
+	var pi = make(map[string][]ParsedIndex, 0)
+	var ref = make(map[string]RefIndex, 0)
+
+	for i := 0; i < v.NumField(); i++ {
+		// f := v.Field(i)
+		ft := t.Field(i)
+		// n := "_" + ft.Name
+		switch ft.Type.Kind() {
+		case reflect.Struct:
+			if ft.Type.ConvertibleTo(reflect.TypeOf(DocumentModel{})) {
+				coll = ft.Tag.Get("coll")
+				pi[ft.Type.Name()] = IndexScan(ft.Tag.Get("idx"))
+				break
+			}
+			if ft.Type.ConvertibleTo(reflect.TypeOf(RefField{})) {
+				r := getRefIndex(i, ft.Tag.Get("ref"), ft.Name)
+				ref[ft.Name] = r
+			}
+			fallthrough
+		case reflect.Slice:
+			if ft.Type.ConvertibleTo(reflect.TypeOf([]RefField{})) {
+				r := getRefIndex(i, ft.Tag.Get("ref"), t.Name())
+				ref[ft.Name] = r
+			}
+			fallthrough
+		default:
+			pi[ft.Name] = IndexScan(ft.Tag.Get("idx"))
+			logBadColl(ft)
+		}
+	}
+
+	return pi, ref, coll
+}
+
+// NewDocument ...
+func NewDocument(d interface{}, c *Connection) interface{} {
+	n, ri, ok := modelRegistry.Exists(d)
+	if !ok { // Trying to register
+		modelRegistry.Register(d)
+		n, ri, _ = modelRegistry.Exists(d)
+	}
+	t := ri.Type
+	v := reflect.ValueOf(d)
+	i := modelRegistry.Index(n) // The dm
+
+	dv := v.Field(i)
+	doc := dv.Interface().(DocumentModel)
+
+	// This document is already initialized so just creating new object
+	// and assigning DM to it
+	if doc.initialized {
+		r := reflect.New(t)
+		df := r.Elem().Field(i)
+		df.Set(dv)
+
+		return r.Interface()
 	}
 
 	var coll string
 	var pi map[string][]ParsedIndex
+	var refs map[string]RefIndex
 
 	r := reflect.New(t)
-	pi, coll = initializeModel(t, r.Elem())
+	pi, refs, coll = initializeTags(t, v)
 	if coll == "" {
 		panic(fmt.Sprintf("The document model does not have a collection name (passed type %s)", n))
 	}
-	df := r.Elem().Field(DocumentModelIdx)
+
+	r.Elem().Set(v)
+	df := r.Elem().Field(i)
 	dm := df.Interface().(DocumentModel)
 
 	dm.modelType = t
 	dm.initialized = true
 	dm.collection = coll
 	dm.index = pi
+	dm.refs = refs
 	dm.connection = c
 
 	df.Set(reflect.ValueOf(dm))
 
 	return r.Interface()
+}
+
+func logBadColl(sf reflect.StructField) {
+	if sf.Tag.Get("coll") != "" {
+		log.Printf("Tag 'coll' used outside DocumentModel is ignored (field: %s)", sf.Name)
+	}
 }

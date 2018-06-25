@@ -34,7 +34,7 @@ func (r *ResultSet) Next(doc Model) bool {
 		r.loadedIter = true
 	}
 
-	dm := doc.CloneModel()
+	dm := doc.SaveModel()
 	gotResult := r.Iter.Next(doc)
 	doc.RestoreModel(dm)
 

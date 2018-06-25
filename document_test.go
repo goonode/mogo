@@ -31,16 +31,70 @@ type DocumentWithModelAndIdx struct {
 	Surname       string
 }
 
+type DocumentWithChildren struct {
+	DocumentModel `bson:",inline" coll:"parent-collection" idx:"{name,surname},unique"`
+	Name          string `idx:"{name},unique,sparse" coll:"parent-colleciton"` // WARN call is used outside DM
+	Surname       string
+	Childs        []RefField `ref:"DocumentChild"`
+	Child         RefField   `ref:"DocumentChild"`
+}
+
+type DocumentWithChildrenNoRef struct {
+	DocumentModel `bson:",inline" coll:"parent-collection" idx:"{name,surname},unique"`
+	Name          string `idx:"{name},unique,sparse" coll:"parent-colleciton"`
+	Surname       string
+	Child         []RefField // This field should have ref tag
+}
+type DocumentChild struct {
+	DocumentModel `bson:",inline" coll:"child-collection" idx:"{name,surname},unique"`
+	Name          string `idx:"{name},unique,sparse"`
+	Surname       string
+}
+
 func TestNewDocument(t *testing.T) {
 	Convey("should create a new document if document is valid or panic if document is invalid", t, func() {
-		So(func() { _ = NewDocumentModel(BadDocument{}, nil) }, ShouldPanic)
-		So(func() { _ = NewDocumentModel(DocumentWithModel{}, nil).(*DocumentWithModel) }, ShouldNotPanic)
+		doc := NewDocument(DocumentWithModelAndIdx{
+			Name:    "MyName",
+			Surname: "MySurname",
+		}, nil).(*DocumentWithModelAndIdx)
+
+		So(doc.Name, ShouldEqual, "MyName")
+		So(doc.Surname, ShouldEqual, "MySurname")
+
+		So(func() { _ = NewDocument(BadDocument{}, nil) }, ShouldPanic)
+		So(func() { _ = NewDocument(DocumentWithModel{}, nil).(*DocumentWithModel) }, ShouldNotPanic)
+	})
+}
+
+func TestNewDocumentWithChildren(t *testing.T) {
+	Convey("should create a new document if document is valid or panic if document is invalid", t, func() {
+		modelRegistry.Register(DocumentWithChildren{},
+			DocumentWithChildrenNoRef{},
+			DocumentChild{})
+
+		doc := NewDocument(DocumentWithChildren{
+			Name:    "MyName",
+			Surname: "MySurname",
+		}, nil).(*DocumentWithChildren)
+
+		So(doc.Name, ShouldEqual, "MyName")
+		So(doc.Surname, ShouldEqual, "MySurname")
+
+		So(func() { _ = NewDocument(BadDocument{}, nil) }, ShouldPanic)
+		So(func() { _ = NewDocument(DocumentWithModel{}, nil).(*DocumentWithModel) }, ShouldNotPanic)
+
+		So(func() {
+			_ = NewDocument(DocumentWithChildrenNoRef{
+				Name:    "MyName",
+				Surname: "MySurname",
+			}, nil).(*DocumentWithChildrenNoRef)
+		}, ShouldPanic)
 	})
 }
 
 func TestGetParsedIndex(t *testing.T) {
 	Convey("should return the parsed indexes as defined in idx tag", t, func() {
-		doc := NewDocumentModel(DocumentWithModelAndIdx{}, nil).(*DocumentWithModelAndIdx)
+		doc := NewDocument(DocumentWithModelAndIdx{}, nil).(*DocumentWithModelAndIdx)
 		pi := doc.GetParsedIndex("_Name")
 		So(pi, ShouldResemble, []ParsedIndex{
 			ParsedIndex{[]string{"name"}, []string{"unique", "sparse"}}})
@@ -57,7 +111,7 @@ func TestGetParsedIndex(t *testing.T) {
 
 func TestGetIndex(t *testing.T) {
 	Convey("should return a  []*mgo.Index from the []ParsedIndex built from idx tag of the Name field", t, func() {
-		doc := NewDocumentModel(DocumentWithModelAndIdx{}, nil).(*DocumentWithModelAndIdx)
+		doc := NewDocument(DocumentWithModelAndIdx{}, nil).(*DocumentWithModelAndIdx)
 		idx := doc.GetIndex("_Name")
 		So(len(idx), ShouldBeGreaterThan, 0)
 		mi := &mgo.Index{
@@ -71,7 +125,9 @@ func TestGetIndex(t *testing.T) {
 
 func TestGetAllIndex(t *testing.T) {
 	Convey("should return a []*mgo.Index from the []ParsedIndex built from idx tags of all fields", t, func() {
-		doc := NewDocumentModel(DocumentWithModelAndIdx{}, nil).(*DocumentWithModelAndIdx)
+		doc := NewDocument(&DocumentWithModelAndIdx{
+			Name: "MyFirst",
+		}, nil).(*DocumentWithModelAndIdx)
 		idx := doc.GetAllIndex()
 		So(len(idx), ShouldBeGreaterThan, 0)
 		mi := &mgo.Index{

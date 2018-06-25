@@ -17,6 +17,12 @@ type ParsedIndex struct {
 	Options []string
 }
 
+// RefIndex contains the referenced objects
+type RefIndex struct {
+	Ref string
+	Idx int
+}
+
 // TrimAllSpaces removes all spaces from the passed string and
 // returns the trimmed string
 func TrimAllSpaces(src string) string {

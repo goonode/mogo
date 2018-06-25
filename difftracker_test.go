@@ -9,7 +9,7 @@ import (
 )
 
 type FooChangeTest struct {
-	DocumentModel `bson:",inline"`
+	DocumentModel `bson:",inline" coll:"change-test"`
 	StringVal     string
 	IntVal        int
 	Timestamp     time.Time

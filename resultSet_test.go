@@ -10,7 +10,7 @@ import (
 
 func TestResultSet(t *testing.T) {
 	conn := getConnection()
-	doc := NewDocumentModel(noHookDocument{}, conn).(*noHookDocument)
+	doc := NewDocument(noHookDocument{}, conn).(*noHookDocument)
 	// collection := conn.Collection("tests")
 	defer doc.connection.Session.Close()
 
@@ -66,7 +66,7 @@ func TestResultSet(t *testing.T) {
 	Convey("Find/pagination w/ query", t, func() {
 		// Create 10 things
 		for i := 0; i < 5; i++ {
-			doc := NewDocumentModel(noHookDocument{}, conn).(*noHookDocument)
+			doc := NewDocument(noHookDocument{}, conn).(*noHookDocument)
 			doc.Name = "foo"
 			Save(doc)
 		}
@@ -126,7 +126,7 @@ func TestResultSet(t *testing.T) {
 	Convey("hooks", t, func() {
 		// Create 10 things
 		for i := 0; i < 10; i++ {
-			doc := NewDocumentModel(noHookDocument{}, conn).(*noHookDocument)
+			doc := NewDocument(noHookDocument{}, conn).(*noHookDocument)
 			Save(doc)
 		}
 
@@ -135,7 +135,7 @@ func TestResultSet(t *testing.T) {
 			defer rset.Free()
 			count := 0
 
-			doc := NewDocumentModel(hookedDocument{}, conn).(*hookedDocument)
+			doc := NewDocument(hookedDocument{}, conn).(*hookedDocument)
 
 			for rset.Next(doc) {
 				So(doc.RanAfterFind, ShouldEqual, true)
