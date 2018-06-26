@@ -1,14 +1,36 @@
 package bongo
 
 import (
+	"errors"
 	"fmt"
+	"log"
 	"reflect"
+
+	"github.com/globalsign/mgo"
 )
+
+// Config ...
+type Config struct {
+	ConnectionString string
+	Database         string
+	DialInfo         *mgo.DialInfo
+}
+
+// var EncryptionKey [32]byte
+// var EnableEncryption bool
+
+// Connection ...
+type Connection struct {
+	Config  *Config
+	Session *mgo.Session
+	Context *Context
+}
 
 // Registry ...
 type Registry interface {
 	Register(...interface{})
 	Exists(interface{}) (string, *ModelInternals, bool)
+	ExistByName(string) (string, *ModelInternals, bool)
 
 	Index(string) int
 	TypeOf(string) reflect.Type
@@ -22,6 +44,11 @@ type ModelInternals struct {
 	Idx int
 	// The Type
 	Type reflect.Type
+
+	// Model internal data
+	Collection string
+	Index      map[string][]ParsedIndex
+	Refs       map[string]RefIndex
 }
 
 // ModelReg ...
@@ -30,17 +57,41 @@ type ModelReg map[string]*ModelInternals
 // modelRegistry is the centralized registry of all models used for the app
 var modelRegistry = make(ModelReg, 0)
 
+// DBConn is the connection initialized after Connect is called.
+// All underlying operation are made using this connection
+var DBConn *Connection
+
+// Connect creates a new connection and run Connect()
+func Connect(config *Config) (*Connection, error) {
+	conn := &Connection{
+		Config:  config,
+		Context: &Context{},
+	}
+
+	err := conn.Connect()
+
+	if err != nil {
+		DBConn = nil
+		log.Printf("Error while connectiong to MongoDb (err: %v)", err)
+
+		return nil, err
+	}
+
+	DBConn = conn
+	return conn, err
+}
+
 // Register ...
 func (r ModelReg) Register(i ...interface{}) {
 	for p, o := range i {
 		t := reflect.TypeOf(o)
 		v := reflect.ValueOf(o)
-		n := t.Name()
 
 		if t.Kind() == reflect.Ptr {
 			t = reflect.Indirect(reflect.ValueOf(o)).Type()
-			v = reflect.ValueOf(0).Elem()
+			v = reflect.ValueOf(o).Elem()
 		}
+		n := t.Name()
 		if t.Kind() != reflect.Struct {
 			panic(fmt.Sprintf("Only type struct can be used as document model (passed type %s (pos: %d) is not struct)", n, p))
 		}
@@ -57,13 +108,41 @@ func (r ModelReg) Register(i ...interface{}) {
 			panic(fmt.Sprintf("A document model must embed a DocumentModel type field (passed type %s (pos: %d) does not have)", n, p))
 		}
 
-		modelRegistry[n] = &ModelInternals{Idx: Idx, Type: t}
+		pi, refs, coll := initializeTags(t, v)
+		if coll == "" {
+			panic(fmt.Sprintf("The document model does not have a collection name (passed type %s)", n))
+		}
+
+		modelRegistry[n] = &ModelInternals{
+			Idx:        Idx,
+			Type:       t,
+			Collection: coll,
+			Index:      pi,
+			Refs:       refs}
+	}
+
+	for k, v := range modelRegistry {
+		// TODO: Second Pass to validate all Refs are defined
+		fmt.Println(k, v)
 	}
 }
 
 // Exists ...
 func (r ModelReg) Exists(i interface{}) (string, *ModelInternals, bool) {
-	n := reflect.TypeOf(i).Name()
+	t := reflect.TypeOf(i)
+	if t.Kind() == reflect.Ptr {
+		t = reflect.Indirect(reflect.ValueOf(i)).Type()
+	}
+	n := t.Name()
+
+	if rT, ok := modelRegistry[n]; ok {
+		return n, rT, true
+	}
+	return "", nil, false
+}
+
+// ExistByName ...
+func (r ModelReg) ExistByName(n string) (string, *ModelInternals, bool) {
 	if t, ok := modelRegistry[n]; ok {
 		return n, t, true
 	}
@@ -96,3 +175,115 @@ func (r ModelReg) Index(n string) int {
 
 // 	return nil
 // }
+
+// Connect to the database using the provided config
+func (m *Connection) Connect() (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			// panic(r)
+			// return
+			if e, ok := r.(error); ok {
+				err = e
+			} else if e, ok := r.(string); ok {
+				err = errors.New(e)
+			} else {
+				err = errors.New(fmt.Sprint(r))
+			}
+
+		}
+	}()
+
+	if m.Config.DialInfo == nil {
+		if m.Config.DialInfo, err = mgo.ParseURL(m.Config.ConnectionString); err != nil {
+			panic(fmt.Sprintf("cannot parse given URI %s due to error: %s", m.Config.ConnectionString, err.Error()))
+		}
+	}
+
+	session, err := mgo.DialWithInfo(m.Config.DialInfo)
+	if err != nil {
+		return err
+	}
+
+	m.Session = session
+
+	m.Session.SetMode(mgo.Monotonic, true)
+
+	return nil
+}
+
+// CollectionFromDatabase ...
+func (m *Connection) CollectionFromDatabase(name string, database string) *Collection {
+	// Just create a new instance - it's cheap and only has name and a database name
+	return &Collection{
+		Connection: m,
+		Context:    m.Context,
+		Database:   database,
+		Name:       name,
+	}
+}
+
+// Collection ...
+func (m *Connection) Collection(name string) *Collection {
+	return m.CollectionFromDatabase(name, m.Config.Database)
+}
+
+func getRefIndex(idx int, tag string, fname string) RefIndex {
+	if tag != "" {
+		if modelRegistry.Index(tag) == -1 {
+			// panic(fmt.Sprintf("passed ref (%s) does not exist in registry", tag))
+			return RefIndex{
+				Idx: -1,
+				Ref: tag,
+			}
+		}
+
+		return RefIndex{
+			Idx: idx,
+			Ref: tag,
+		}
+	}
+
+	panic(fmt.Sprintf("ref tag is missing on RefField field (type: %s)", fname))
+}
+
+func initializeTags(t reflect.Type, v reflect.Value) (map[string][]ParsedIndex, map[string]RefIndex, string) {
+	var coll = ""
+	var pi = make(map[string][]ParsedIndex, 0)
+	var ref = make(map[string]RefIndex, 0)
+
+	for i := 0; i < v.NumField(); i++ {
+		// f := v.Field(i)
+		ft := t.Field(i)
+		// n := "_" + ft.Name
+		switch ft.Type.Kind() {
+		case reflect.Struct:
+			if ft.Type.ConvertibleTo(reflect.TypeOf(DocumentModel{})) {
+				coll = ft.Tag.Get("coll")
+				pi[ft.Type.Name()] = IndexScan(ft.Tag.Get("idx"))
+				break
+			}
+			if ft.Type.ConvertibleTo(reflect.TypeOf(RefField{})) {
+				r := getRefIndex(i, ft.Tag.Get("ref"), ft.Name)
+				ref[ft.Name] = r
+			}
+			fallthrough
+		case reflect.Slice:
+			if ft.Type.ConvertibleTo(reflect.TypeOf([]RefField{})) {
+				r := getRefIndex(i, ft.Tag.Get("ref"), t.Name())
+				ref[ft.Name] = r
+			}
+			fallthrough
+		default:
+			pi[ft.Name] = IndexScan(ft.Tag.Get("idx"))
+			logBadColl(ft)
+		}
+	}
+
+	return pi, ref, coll
+}
+
+func logBadColl(sf reflect.StructField) {
+	if sf.Tag.Get("coll") != "" {
+		log.Printf("Tag 'coll' used outside DocumentModel is ignored (field: %s)", sf.Name)
+	}
+}
