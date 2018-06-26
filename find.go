@@ -5,11 +5,35 @@ import (
 	"github.com/globalsign/mgo/bson"
 )
 
+// FindOne ...
+func (c *Collection) FindOne(query interface{}, doc Model) error {
+
+	// Now run a find
+	results := c.Find(query)
+	results.Query.Limit(1)
+
+	hasNext := results.Next(doc)
+
+	if !hasNext {
+		// There could have been an error fetching the next one, which would set the Error property on the resultset
+		if results.Error != nil {
+			return results.Error
+		}
+		return &DocumentNotFoundError{}
+	}
+
+	if newt, ok := doc.(NewTracker); ok {
+		newt.SetIsNew(false)
+	}
+
+	return nil
+}
+
 // FindByID ...
-func (c *Collection) FindByID(id bson.ObjectId, doc interface{}) error {
-
+func (c *Collection) FindByID(id bson.ObjectId, doc Model) error {
+	iname := doc.SaveIName()
 	err := c.Collection().FindId(id).One(doc)
-
+	doc.RestoreIName(iname)
 	// Handle errors coming from mgo - we want to convert it to a DocumentNotFoundError so people can figure out
 	// what the error type is without looking at the text
 	if err != nil {
@@ -17,7 +41,6 @@ func (c *Collection) FindByID(id bson.ObjectId, doc interface{}) error {
 			return &DocumentNotFoundError{}
 		}
 		return err
-
 	}
 
 	if hook, ok := doc.(AfterFindHook); ok {
@@ -52,24 +75,19 @@ func (c *Collection) Find(query interface{}) *ResultSet {
 }
 
 // FindOne ...
-func (c *Collection) FindOne(query interface{}, doc Model) error {
+func FindOne(doc Document, query interface{}) error {
+	return doc.GetColl().FindOne(query, doc)
+}
 
-	// Now run a find
-	results := c.Find(query)
-	results.Query.Limit(1)
+// FindByID ...
+func FindByID(doc Document, id bson.ObjectId) error {
+	return doc.GetColl().FindByID(id, doc)
+}
 
-	hasNext := results.Next(doc)
-
-	if !hasNext {
-		// There could have been an error fetching the next one, which would set the Error property on the resultset
-		if results.Error != nil {
-			return results.Error
-		}
-		return &DocumentNotFoundError{}
-	}
-
-	if newt, ok := doc.(NewTracker); ok {
-		newt.SetIsNew(false)
+// Find ...
+func Find(doc Model, query interface{}) *ResultSet {
+	if d, ok := doc.(Document); ok {
+		return d.GetColl().Find(query)
 	}
 
 	return nil
