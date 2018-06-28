@@ -7,7 +7,7 @@ We couldn't find a good ODM for MongoDB written in Go, so we made one. Bongo is 
 
 Bongo is tested using the fantasic GoConvey (https://github.com/smartystreets/goconvey)
 
-<!-- [![Build Status](https://travis-ci.org/go-bongo/bongo.svg)](https://travis-ci.org/go-bongo/bongo)
+<!-- [![Build Status](https://travis-ci.org/goonode/bongo.svg?branch=master)](https://travis-ci.org/goonode/bongo.svg?branch=master)
 
 [![Coverage Status](https://coveralls.io/repos/go-bongo/bongo/badge.svg)](https://coveralls.io/r/go-bongo/bongo) -->
 
@@ -34,7 +34,7 @@ config := &bongo.Config{
 }
 ```
 
-Then just create a new instance of `bongo.Connection`, and make sure to handle any connection errors:
+Then just call the `Connect` func passing the config, and make sure to handle any connection errors:
 
 ```go
 connection, err := bongo.Connect(config)
@@ -43,15 +43,43 @@ if err != nil {
 	log.Fatal(err)
 }
 ```
+`Connect` will create a connection for you and also will store this connection in DBConn global var. 
+This global var can be used to access to the Connection object from any place inside the application and it will be used
+also from all internal functions when an access to the connection is needed. 
 
 If you need to, you can access the raw `mgo` session with `connection.Session`
 
+### Create a Model
+
+A Model contains all information related to the the interface between a Document and the underlying mgo driver. 
+You need to register a Model (and all Models you want to use in your application) before.
+
+To create a new Model you need to define the document struct and than you need to register it to bongo global registry:
+
+```go
+type Bongo struct {
+	DocumentModel `bson:",inline" coll:"bongo-registry-coll"`
+	Name          string
+	Friends       []RefField `ref:"Macao"`
+}
+
+type Macao struct {
+	DocumentModel `bson:",inline" coll:"bongo-registry-coll"`
+	Name          string
+}
+
+ModelRegistry.Register(Bongo{}, Macao{})
+
+```
+
 ### Create a Document
 
-Any struct can be used as a document as long as it embed the `DocumentModel` struct. The `DocumentModel` provided with Bongo implements the `Document` interface as well as the `NewTracker`, `TimeCreatedTracker` and `TimeModifiedTracker` interfaces (to keep track of new/existing documents and created/modified timestamps). 
-The `DocumentModel`  must be embeded with `bson:",inline"` tag otherwise you will get nested behavior when the data goes to your database. The recommended way to define a new document model is by calling the `NewDocumentModel` function. This function provides all steps to correctly configure the document model, while it will panic if something goes wrong. Also you can pass to the `NewDocumentModel` func a `*bongo.Connection` to bind the document to a connection to mongodb.
-Each new document model also requires the `coll:` tag which will be used to assign the model to a mongo collection. 
-Finally the `idx:` tag can be used to create indexes (the index feature is in development stage and very limited at the moment)
+Any struct can be used as a document as long as it embed the `DocumentModel` struct. The `DocumentModel` provided with Bongo implements the `Document` interface as well as the `Model`, `NewTracker`, `TimeCreatedTracker` and `TimeModifiedTracker` interfaces (to keep track of new/existing documents and created/modified timestamps). 
+The `DocumentModel` must be embeded with `bson:",inline"` tag otherwise you will get nested behavior when the data goes to your database. Also it requires the `coll` tag which will be used to assign the model to a mongo collection. The `coll:` tag can be used only on this field of the struct, and a document can only have one collection.
+The `idx:` tag can be used to create indexes (the index feature is in development stage and very limited at the moment). 
+The syntax for the `idx:` tag is `{field1,...},unique,sparse,...`. The field name must follow the bson tag specs.
+
+The recommended way to define a new document model is by calling the `NewDocument`, that returns a pointer to a newly created document.
 
 
 For example:
@@ -73,45 +101,49 @@ func main() {
 You can use child structs as well.
 
 ```go
+type HomeAddress struct {
+		Street string
+		Suite string
+		City string
+		State string
+		Zip string
+}
+
 type Person struct {
 	bongo.DocumentModel `bson:",inline" coll:"user-coll"`
 	FirstName string
 	LastName string
 	Gender string
-	HomeAddress struct {
+	HomeAddress HomeAddress
+}
+
+func main() {
+	Person := NewDocument(Person{}).(*Person)
+	...
+}
+```
+
+Index definition using the `idx` tag.
+
+```go
+type HomeAddress struct {
 		Street string
 		Suite string
 		City string
 		State string
 		Zip string
-	}
 }
 
-func main() {
-	Person := NewDocumentModel(Person{}, nil).(*Person)
-	...
-}
-```
-
-Index definition.
-
-```go
 type Person struct {
 	bongo.DocumentModel `bson:",inline" coll:"user-coll"`
 	FirstName string	`idx:"{firstname},unique"`
 	LastName string		`idx:"{lastname},unique"`
 	Gender string
-	HomeAddress struct {
-		Street string
-		Suite string
-		City string
-		State string
-		Zip string
-	}
+	HomeAddress HomeAddress `idx:"{homeaddress.street, homeaddress.city},unique,sparse"`
 }
 
 func main() {
-	Person := NewDocumentModel(Person{}, nil).(*Person)
+	Person := NewDocument(Person{}).(*Person)
 	...
 }
 ```
