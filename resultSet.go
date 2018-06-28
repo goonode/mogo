@@ -34,9 +34,9 @@ func (r *ResultSet) Next(doc Model) bool {
 		r.loadedIter = true
 	}
 
-	dm := doc.SaveModel()
+	iname := doc.GetIName()
 	gotResult := r.Iter.Next(doc)
-	doc.RestoreModel(dm)
+	doc.RestoreIName(iname)
 
 	if gotResult {
 		if hook, ok := doc.(AfterFindHook); ok {

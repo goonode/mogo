@@ -8,11 +8,18 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 )
 
+func init() {
+	_, _ = Connect(&Config{
+		Database:         "bongotest",
+		ConnectionString: "localhost",
+	})
+
+}
+
 func TestResultSet(t *testing.T) {
-	conn := getConnection()
-	doc := NewDocument(noHookDocument{}, conn).(*noHookDocument)
+	doc := NewDocument(noHookDocument{}).(*noHookDocument)
 	// collection := conn.Collection("tests")
-	defer doc.connection.Session.Close()
+	defer DBConn.Session.Close()
 
 	Convey("Basic find/pagination", t, func() {
 		// Create 10 things
@@ -27,7 +34,7 @@ func TestResultSet(t *testing.T) {
 			defer rset.Free()
 			count := 0
 
-			// doc := NewDocumentModel(noHookDocument{}, conn).(*noHookDocument)
+			// doc := NewDocumentModel(noHookDocument{}).(*noHookDocument)
 
 			for rset.Next(doc) {
 				count++
@@ -59,14 +66,14 @@ func TestResultSet(t *testing.T) {
 		})
 
 		Reset(func() {
-			conn.Session.DB("bongotest").DropDatabase()
+			DBConn.Session.DB("bongotest").DropDatabase()
 		})
 	})
 
 	Convey("Find/pagination w/ query", t, func() {
 		// Create 10 things
 		for i := 0; i < 5; i++ {
-			doc := NewDocument(noHookDocument{}, conn).(*noHookDocument)
+			doc := NewDocument(noHookDocument{}).(*noHookDocument)
 			doc.Name = "foo"
 			Save(doc)
 		}
@@ -119,14 +126,14 @@ func TestResultSet(t *testing.T) {
 		})
 
 		Reset(func() {
-			conn.Session.DB("bongotest").DropDatabase()
+			DBConn.Session.DB("bongotest").DropDatabase()
 		})
 	})
 
 	Convey("hooks", t, func() {
 		// Create 10 things
 		for i := 0; i < 10; i++ {
-			doc := NewDocument(noHookDocument{}, conn).(*noHookDocument)
+			doc := NewDocument(noHookDocument{}).(*noHookDocument)
 			Save(doc)
 		}
 
@@ -135,7 +142,7 @@ func TestResultSet(t *testing.T) {
 			defer rset.Free()
 			count := 0
 
-			doc := NewDocument(hookedDocument{}, conn).(*hookedDocument)
+			doc := NewDocument(hookedDocument{}).(*hookedDocument)
 
 			for rset.Next(doc) {
 				So(doc.RanAfterFind, ShouldEqual, true)
@@ -146,7 +153,7 @@ func TestResultSet(t *testing.T) {
 		})
 
 		Reset(func() {
-			conn.Session.DB("bongotest").DropDatabase()
+			DBConn.Session.DB("bongotest").DropDatabase()
 		})
 	})
 }
