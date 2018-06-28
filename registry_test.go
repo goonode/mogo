@@ -7,6 +7,17 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 )
 
+type Bongo struct {
+	DocumentModel `bson:",inline" coll:"bongo-registry"`
+	Name          string
+	Friends       []RefField `ref:"Macao"`
+}
+
+type Macao struct {
+	DocumentModel `bson:",inline" coll:"bongo-registry"`
+	Name          string
+}
+
 func TestRegister(t *testing.T) {
 	var mr ModelReg
 
@@ -39,5 +50,16 @@ func TestRegister(t *testing.T) {
 	// 	h := mr.New(hookedDocument{}).(*hookedDocument)
 	// 	So(reflect.TypeOf(h), ShouldResemble, reflect.TypeOf(hookedDocument{}))
 	// })
+}
 
+func TestRegisterRef(t *testing.T) {
+	Convey("should register the passed interfaces", t, func() {
+		ModelRegistry.Register(Bongo{}, Macao{})
+		_, _, ok := ModelRegistry.Exists(Bongo{})
+		So(ok, ShouldBeTrue)
+		_, _, ok = ModelRegistry.Exists(Macao{})
+		So(ok, ShouldBeTrue)
+		So(ModelRegistry["Bongo"].Refs["Friends"].Ref, ShouldEqual, "Macao")
+		So(ModelRegistry["Bongo"].Refs["Friends"].Exists, ShouldBeTrue)
+	})
 }

@@ -54,8 +54,8 @@ type ModelInternals struct {
 // ModelReg ...
 type ModelReg map[string]*ModelInternals
 
-// modelRegistry is the centralized registry of all models used for the app
-var modelRegistry = make(ModelReg, 0)
+// ModelRegistry is the centralized registry of all models used for the app
+var ModelRegistry = make(ModelReg, 0)
 
 // DBConn is the connection initialized after Connect is called.
 // All underlying operation are made using this connection
@@ -113,7 +113,7 @@ func (r ModelReg) Register(i ...interface{}) {
 			panic(fmt.Sprintf("The document model does not have a collection name (passed type %s)", n))
 		}
 
-		modelRegistry[n] = &ModelInternals{
+		ModelRegistry[n] = &ModelInternals{
 			Idx:        Idx,
 			Type:       t,
 			Collection: coll,
@@ -121,9 +121,19 @@ func (r ModelReg) Register(i ...interface{}) {
 			Refs:       refs}
 	}
 
-	for k, v := range modelRegistry {
-		// TODO: Second Pass to validate all Refs are defined
-		fmt.Println(k, v)
+	for k, v := range ModelRegistry {
+		// TODO: Second Pass to validate all defined Refs
+		for kk, vv := range v.Refs {
+			if !vv.Exists {
+				if _, ok := ModelRegistry[vv.Ref]; ok {
+					ModelRegistry[k].Refs[kk] = RefIndex{
+						Idx:    ModelRegistry[k].Refs[kk].Idx,
+						Ref:    ModelRegistry[k].Refs[kk].Ref,
+						Exists: true,
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -135,7 +145,7 @@ func (r ModelReg) Exists(i interface{}) (string, *ModelInternals, bool) {
 	}
 	n := t.Name()
 
-	if rT, ok := modelRegistry[n]; ok {
+	if rT, ok := ModelRegistry[n]; ok {
 		return n, rT, true
 	}
 	return "", nil, false
@@ -143,7 +153,7 @@ func (r ModelReg) Exists(i interface{}) (string, *ModelInternals, bool) {
 
 // ExistByName ...
 func (r ModelReg) ExistByName(n string) (string, *ModelInternals, bool) {
-	if t, ok := modelRegistry[n]; ok {
+	if t, ok := ModelRegistry[n]; ok {
 		return n, t, true
 	}
 	return "", nil, false
@@ -151,7 +161,7 @@ func (r ModelReg) ExistByName(n string) (string, *ModelInternals, bool) {
 
 // TypeOf ...
 func (r ModelReg) TypeOf(n string) reflect.Type {
-	if v, ok := modelRegistry[n]; ok {
+	if v, ok := ModelRegistry[n]; ok {
 		return v.Type
 	}
 	return nil
@@ -160,7 +170,7 @@ func (r ModelReg) TypeOf(n string) reflect.Type {
 // Index returns the index of the DocumentModel field in the struct
 // or -1 if the struct name passed is not found
 func (r ModelReg) Index(n string) int {
-	if v, ok := modelRegistry[n]; ok {
+	if v, ok := ModelRegistry[n]; ok {
 		return v.Idx
 	}
 	return -1
@@ -229,17 +239,18 @@ func (m *Connection) Collection(name string) *Collection {
 
 func getRefIndex(idx int, tag string, fname string) RefIndex {
 	if tag != "" {
-		if modelRegistry.Index(tag) == -1 {
-			// panic(fmt.Sprintf("passed ref (%s) does not exist in registry", tag))
+		if ModelRegistry.Index(tag) == -1 {
 			return RefIndex{
-				Idx: -1,
-				Ref: tag,
+				Idx:    idx,
+				Ref:    tag,
+				Exists: false,
 			}
 		}
 
 		return RefIndex{
-			Idx: idx,
-			Ref: tag,
+			Idx:    idx,
+			Ref:    tag,
+			Exists: true,
 		}
 	}
 
