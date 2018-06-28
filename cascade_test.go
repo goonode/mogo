@@ -9,8 +9,8 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 )
 
-type Parent struct {
-	DocumentModel `bson:",inline"`
+type CascadeParent struct {
+	DocumentModel `bson:",inline" coll:"parents"`
 	Bar           string
 	Number        int
 	FooBar        string
@@ -20,7 +20,7 @@ type Parent struct {
 	diffTracker   *DiffTracker
 }
 
-func (f *Parent) GetDiffTracker() *DiffTracker {
+func (f *CascadeParent) GetDiffTracker() *DiffTracker {
 	v := reflect.ValueOf(f.diffTracker)
 	if !v.IsValid() || v.IsNil() {
 		f.diffTracker = NewDiffTracker(f)
@@ -29,8 +29,8 @@ func (f *Parent) GetDiffTracker() *DiffTracker {
 	return f.diffTracker
 }
 
-type Child struct {
-	DocumentModel `bson:",inline"`
+type CascadeChild struct {
+	DocumentModel `bson:",inline" coll:"children"`
 	ParentID      bson.ObjectId `bson:",omitempty"`
 	Name          string
 	SubChild      SubChildRef `bson:"subChild"`
@@ -38,16 +38,15 @@ type Child struct {
 	diffTracker   *DiffTracker
 }
 
-func (c *Child) GetCascade(collection *Collection) []*CascadeConfig {
-
+func (c *CascadeChild) GetCascade(collection *Collection) []*CascadeConfig {
 	ref := ChildRef{
 		ID:       c.ID,
 		Name:     c.Name,
 		SubChild: c.SubChild,
 	}
-	connection := collection.Connection
+
 	cascadeSingle := &CascadeConfig{
-		Collection:  connection.Collection("parents"),
+		Collection:  c.GetColl(),
 		Properties:  []string{"_id", "name", "subChild.foo", "subChild._id"},
 		Data:        ref,
 		ThroughProp: "child",
@@ -58,7 +57,7 @@ func (c *Child) GetCascade(collection *Collection) []*CascadeConfig {
 	}
 
 	cascadeCopy := &CascadeConfig{
-		Collection: connection.Collection("parents"),
+		Collection: c.GetColl(),
 		Properties: []string{"childProp"},
 		Data: map[string]interface{}{
 			"childProp": c.ChildProp,
@@ -70,7 +69,7 @@ func (c *Child) GetCascade(collection *Collection) []*CascadeConfig {
 	}
 
 	cascadeMulti := &CascadeConfig{
-		Collection:  connection.Collection("parents"),
+		Collection:  c.GetColl(),
 		Properties:  []string{"_id", "name", "subChild.foo", "subChild._id"},
 		Data:        ref,
 		ThroughProp: "children",
@@ -81,7 +80,6 @@ func (c *Child) GetCascade(collection *Collection) []*CascadeConfig {
 	}
 
 	if c.GetDiffTracker().Modified("ParentID") {
-
 		origID, _ := c.diffTracker.GetOriginalValue("ParentID")
 		if origID != nil {
 			oldQuery := bson.M{
@@ -97,7 +95,7 @@ func (c *Child) GetCascade(collection *Collection) []*CascadeConfig {
 	return []*CascadeConfig{cascadeSingle, cascadeMulti, cascadeCopy}
 }
 
-func (c *Child) GetDiffTracker() *DiffTracker {
+func (c *CascadeChild) GetDiffTracker() *DiffTracker {
 	v := reflect.ValueOf(c.diffTracker)
 	if !v.IsValid() || v.IsNil() {
 		c.diffTracker = NewDiffTracker(c)
@@ -107,7 +105,7 @@ func (c *Child) GetDiffTracker() *DiffTracker {
 }
 
 type SubChild struct {
-	DocumentModel `bson:",inline"`
+	DocumentModel `bson:",inline" coll:"subchildren"`
 	Foo           string
 	ChildID       bson.ObjectId
 }
@@ -117,9 +115,8 @@ func (c *SubChild) GetCascade(collection *Collection) []*CascadeConfig {
 		ID:  c.ID,
 		Foo: c.Foo,
 	}
-	connection := collection.Connection
 	cascadeSingle := &CascadeConfig{
-		Collection:  connection.Collection("children"),
+		Collection:  c.GetColl(),
 		Properties:  []string{"_id", "foo"},
 		Data:        ref,
 		ThroughProp: "subChild",
@@ -128,7 +125,7 @@ func (c *SubChild) GetCascade(collection *Collection) []*CascadeConfig {
 			"_id": c.ChildID,
 		},
 		Nest:     true,
-		Instance: &Child{},
+		Instance: &CascadeChild{},
 	}
 
 	return []*CascadeConfig{cascadeSingle}
@@ -151,31 +148,24 @@ func TestCascade(t *testing.T) {
 
 	Convey("Cascade Save/Delete - full runthrough", t, func() {
 		connection.Session.DB("bongotest").DropDatabase()
-		collection := connection.Collection("parents")
+		parent := NewDocument(CascadeParent{}).(*CascadeParent)
+		parent.Bar = "Testy McGee"
+		parent.Number = 5
 
-		childCollection := connection.Collection("children")
-		subchildCollection := connection.Collection("subchildren")
-		parent := &Parent{
-			Bar:    "Testy McGee",
-			Number: 5,
-		}
+		parent2 := NewDocument(CascadeParent{}).(*CascadeParent)
+		parent2.Bar = "Other Parent"
+		parent2.Number = 10
 
-		parent2 := &Parent{
-			Bar:    "Other Parent",
-			Number: 10,
-		}
-
-		err := collection.Save(parent)
+		err := Save(parent)
 		So(err, ShouldEqual, nil)
-		err = collection.Save(parent2)
+		err = Save(parent2)
 		So(err, ShouldEqual, nil)
 
-		child := &Child{
-			ParentID:  parent.ID,
-			Name:      "Foo McGoo",
-			ChildProp: "Doop McGoop",
-		}
-		err = childCollection.Save(child)
+		child := NewDocument(CascadeChild{}).(*CascadeChild)
+		child.ParentID = parent.ID
+		child.Name = "Foo McGoo"
+		child.ChildProp = "Doop McGoop"
+		err = Save(child)
 
 		// Wait a sec for the go routine to finish.
 		time.Sleep(100 * time.Millisecond)
@@ -183,8 +173,8 @@ func TestCascade(t *testing.T) {
 		So(err, ShouldEqual, nil)
 
 		child.GetDiffTracker().Reset()
-		newParent := &Parent{}
-		collection.FindByID(parent.ID, newParent)
+		newParent := NewDocument(CascadeParent{}).(*CascadeParent)
+		FindByID(newParent, parent.ID)
 
 		So(newParent.Child.Name, ShouldEqual, "Foo McGoo")
 		So(newParent.Child.ID.Hex(), ShouldEqual, child.ID.Hex())
@@ -198,7 +188,7 @@ func TestCascade(t *testing.T) {
 		child.ParentID = parent2.ID
 		So(child.GetDiffTracker().Modified("ParentID"), ShouldEqual, true)
 
-		err = childCollection.Save(child)
+		err = Save(child)
 		So(err, ShouldEqual, nil)
 
 		// Wait a sec for the go routine to finish.
@@ -208,13 +198,13 @@ func TestCascade(t *testing.T) {
 		// Now make sure it says the parent id DIDNT change, because we just reset the tracker
 		So(child.GetDiffTracker().Modified("ParentID"), ShouldEqual, false)
 
-		newParent1 := &Parent{}
-		collection.FindByID(parent.ID, newParent1)
+		newParent1 := NewDocument(CascadeParent{}).(*CascadeParent)
+		FindByID(newParent1, parent.ID)
 		So(newParent1.Child.Name, ShouldEqual, "")
 		So(newParent1.ChildProp, ShouldEqual, "")
 		So(len(newParent1.Children), ShouldEqual, 0)
-		newParent2 := &Parent{}
-		collection.FindByID(parent2.ID, newParent2)
+		newParent2 := NewDocument(CascadeParent{}).(*CascadeParent)
+		FindByID(newParent2, parent2.ID)
 		So(newParent2.ChildProp, ShouldEqual, "Doop McGoop")
 		So(newParent2.Child.Name, ShouldEqual, "Foo McGoo")
 		So(newParent2.Child.ID.Hex(), ShouldEqual, child.ID.Hex())
@@ -222,49 +212,44 @@ func TestCascade(t *testing.T) {
 		So(newParent2.Children[0].ID.Hex(), ShouldEqual, child.ID.Hex())
 
 		// Make a new sub child, save it, and it should cascade to the child AND the parent
-		subChild := &SubChild{
-			Foo:     "MySubChild",
-			ChildID: child.ID,
-		}
-
-		err = subchildCollection.Save(subChild)
+		subChild := NewDocument(SubChild{}).(*SubChild)
+		subChild.Foo = "MySubChild"
+		subChild.ChildID = child.ID
+		err = Save(subChild)
 		So(err, ShouldEqual, nil)
 
 		// Wait a sec for the go routine to finish.
 		time.Sleep(100 * time.Millisecond)
 
 		// Fetch the parent
-		newParent3 := &Parent{}
-		collection.FindByID(parent2.ID, newParent3)
+		newParent3 := NewDocument(CascadeParent{}).(*CascadeParent)
+		FindByID(newParent3, parent2.ID)
 		So(newParent3.Child.SubChild.Foo, ShouldEqual, "MySubChild")
 		So(newParent3.Child.SubChild.ID.Hex(), ShouldEqual, subChild.ID.Hex())
 
-		newParent4 := &Parent{}
-		err = childCollection.DeleteDocument(child)
+		newParent4 := NewDocument(CascadeParent{}).(*CascadeParent)
+		err = DeleteDocument(child)
 
 		// Wait a sec for the go routine to finish.
 		time.Sleep(100 * time.Millisecond)
 
 		So(err, ShouldEqual, nil)
-		collection.FindByID(parent2.ID, newParent4)
+		FindByID(newParent4, parent2.ID)
 		So(newParent4.Child.Name, ShouldEqual, "")
 		So(newParent4.ChildProp, ShouldEqual, "")
 		So(len(newParent4.Children), ShouldEqual, 0)
-
 	})
 
 	Convey("MapFromCascadeProperties", t, func() {
-		parent := &Parent{
-			Bar: "bar",
-			Child: ChildRef{
-				Name: "child",
-				SubChild: SubChildRef{
-					Foo: "foo",
-				},
+		parent := NewDocument(CascadeParent{}).(*CascadeParent)
+		parent.Bar = "bar"
+		parent.Child = ChildRef{
+			Name: "child",
+			SubChild: SubChildRef{
+				Foo: "foo",
 			},
-			Number: 5,
 		}
-
+		parent.Number = 5
 		props := []string{"bar", "child.name"}
 
 		mp := MapFromCascadeProperties(props, parent)
@@ -274,7 +259,5 @@ func TestCascade(t *testing.T) {
 
 		submp := mp["child"].(map[string]interface{})
 		So(submp["name"], ShouldEqual, "child")
-
 	})
-
 }
