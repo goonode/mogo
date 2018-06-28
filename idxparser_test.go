@@ -10,8 +10,8 @@ import (
 func TestScan(t *testing.T) {
 	Convey("should return the tokens in passed []byte", t, func() {
 		r := []ParsedIndex{
-			ParsedIndex{[]string{"name", "surname"}, []string{"unique", "sparse"}},
-			ParsedIndex{[]string{"surname"}, []string{"unique"}},
+			ParsedIndex{[]string{"name", "surname"}, []string{"unique", "sparse"}, 0, false},
+			ParsedIndex{[]string{"surname"}, []string{"unique"}, 0, false},
 		}
 		p := IndexScan("{name,surname},unique,sparse;{surname},unique")
 		So(p, ShouldResemble, r)

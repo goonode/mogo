@@ -15,12 +15,21 @@ var optionKeywords = [...]string{"unique", "sparse", "background", "dropdups"}
 type ParsedIndex struct {
 	Fields  []string
 	Options []string
+
+	lastFieldIdx int
+	stickyField  bool
 }
 
 // RefIndex contains the referenced objects
 type RefIndex struct {
+	// The referenced object name
 	Ref string
+
+	// The field index in the parsed struct
 	Idx int
+
+	// Whenever the reference object exists in the Registry
+	Exists bool
 }
 
 // TrimAllSpaces removes all spaces from the passed string and
@@ -65,10 +74,22 @@ func IndexScan(src string) []ParsedIndex {
 			lb = false
 		case token.IDENT:
 			if lb {
+				if p.getStickyField() {
+					p.appendDotField(lit)
+					p.setStickyFieldTo(false)
+					break
+				}
+
 				p.appendField(lit)
 				break
 			}
 			p.appendOption(lit)
+		case token.PERIOD:
+			if p.getStickyField() {
+				goto _panic
+			}
+			p.setStickyFieldTo(true)
+			p.updateLastFieldIdx()
 		case token.COMMA:
 		case token.COLON:
 			if lb {
@@ -129,4 +150,22 @@ func (p *ParsedIndex) appendOption(o string) {
 
 func (p *ParsedIndex) appendField(f string) {
 	p.Fields = append(p.Fields, f)
+}
+func (p *ParsedIndex) appendDotField(f string) {
+	p.Fields[p.lastFieldIdx] = p.Fields[p.lastFieldIdx] + "." + f
+}
+func (p *ParsedIndex) updateLastFieldIdx() {
+	if len(p.Fields) > 0 {
+		p.lastFieldIdx = len(p.Fields) - 1
+		return
+	}
+
+	p.lastFieldIdx = 0
+}
+func (p *ParsedIndex) setStickyFieldTo(s bool) {
+	p.stickyField = s
+}
+
+func (p *ParsedIndex) getStickyField() bool {
+	return p.stickyField
 }
