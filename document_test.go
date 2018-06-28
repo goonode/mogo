@@ -7,6 +7,13 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 )
 
+func init() {
+	_, _ = Connect(&Config{
+		Database:         "bongotest",
+		ConnectionString: "localhost",
+	})
+}
+
 // BadDocument is not a valid document because it doesn't have
 // the DocumentModel field
 type BadDocument struct {
@@ -56,54 +63,57 @@ func TestNewDocument(t *testing.T) {
 		doc := NewDocument(DocumentWithModelAndIdx{
 			Name:    "MyName",
 			Surname: "MySurname",
-		}, nil).(*DocumentWithModelAndIdx)
+		}).(*DocumentWithModelAndIdx)
 
 		So(doc.Name, ShouldEqual, "MyName")
 		So(doc.Surname, ShouldEqual, "MySurname")
 
-		So(func() { _ = NewDocument(BadDocument{}, nil) }, ShouldPanic)
-		So(func() { _ = NewDocument(DocumentWithModel{}, nil).(*DocumentWithModel) }, ShouldNotPanic)
+		So(func() { _ = NewDocument(BadDocument{}) }, ShouldPanic)
+		So(func() { _ = NewDocument(DocumentWithModel{}).(*DocumentWithModel) }, ShouldNotPanic)
 	})
 }
 
 func TestNewDocumentWithChildren(t *testing.T) {
 	Convey("should create a new document if document is valid or panic if document is invalid", t, func() {
-		modelRegistry.Register(DocumentWithChildren{},
-			DocumentWithChildrenNoRef{},
-			DocumentChild{})
+		So(func() {
+			ModelRegistry.Register(DocumentWithChildren{},
+				DocumentWithChildrenNoRef{},
+				DocumentChild{})
+		}, ShouldPanic)
 
 		doc := NewDocument(DocumentWithChildren{
 			Name:    "MyName",
 			Surname: "MySurname",
-		}, nil).(*DocumentWithChildren)
+		}).(*DocumentWithChildren)
 
 		So(doc.Name, ShouldEqual, "MyName")
 		So(doc.Surname, ShouldEqual, "MySurname")
 
-		So(func() { _ = NewDocument(BadDocument{}, nil) }, ShouldPanic)
-		So(func() { _ = NewDocument(DocumentWithModel{}, nil).(*DocumentWithModel) }, ShouldNotPanic)
+		So(func() { _ = NewDocument(BadDocument{}) }, ShouldPanic)
+		So(func() { _ = NewDocument(DocumentWithModel{}).(*DocumentWithModel) }, ShouldNotPanic)
 
 		So(func() {
 			_ = NewDocument(DocumentWithChildrenNoRef{
 				Name:    "MyName",
 				Surname: "MySurname",
-			}, nil).(*DocumentWithChildrenNoRef)
+			}).(*DocumentWithChildrenNoRef)
 		}, ShouldPanic)
 	})
 }
 
 func TestGetParsedIndex(t *testing.T) {
+	ModelRegistry.Register(DocumentWithModelAndIdx{})
 	Convey("should return the parsed indexes as defined in idx tag", t, func() {
-		doc := NewDocument(DocumentWithModelAndIdx{}, nil).(*DocumentWithModelAndIdx)
-		pi := doc.GetParsedIndex("_Name")
+		doc := NewDocument(DocumentWithModelAndIdx{}).(*DocumentWithModelAndIdx)
+		pi := doc.GetParsedIndex("Name")
 		So(pi, ShouldResemble, []ParsedIndex{
-			ParsedIndex{[]string{"name"}, []string{"unique", "sparse"}}})
+			ParsedIndex{[]string{"name"}, []string{"unique", "sparse"}, 0, false}})
 		pi = doc.GetParsedIndex("Boh")
 		So(pi, ShouldBeNil)
 		rm := make(map[string][]ParsedIndex, 0)
-		rm["DocumentModel"] = []ParsedIndex{ParsedIndex{[]string{"name", "surname"}, []string{"unique"}}}
-		rm["_Name"] = []ParsedIndex{ParsedIndex{[]string{"name"}, []string{"unique", "sparse"}}}
-		rm["_Surname"] = nil
+		rm["DocumentModel"] = []ParsedIndex{ParsedIndex{[]string{"name", "surname"}, []string{"unique"}, 1, false}}
+		rm["Name"] = []ParsedIndex{ParsedIndex{[]string{"name"}, []string{"unique", "sparse"}, 0, false}}
+		rm["Surname"] = nil
 		mi := doc.GetAllParsedIndex()
 		So(mi, ShouldResemble, rm)
 	})
@@ -111,8 +121,8 @@ func TestGetParsedIndex(t *testing.T) {
 
 func TestGetIndex(t *testing.T) {
 	Convey("should return a  []*mgo.Index from the []ParsedIndex built from idx tag of the Name field", t, func() {
-		doc := NewDocument(DocumentWithModelAndIdx{}, nil).(*DocumentWithModelAndIdx)
-		idx := doc.GetIndex("_Name")
+		doc := NewDocument(DocumentWithModelAndIdx{}).(*DocumentWithModelAndIdx)
+		idx := doc.GetIndex("Name")
 		So(len(idx), ShouldBeGreaterThan, 0)
 		mi := &mgo.Index{
 			Key:    []string{"name"},
@@ -127,7 +137,7 @@ func TestGetAllIndex(t *testing.T) {
 	Convey("should return a []*mgo.Index from the []ParsedIndex built from idx tags of all fields", t, func() {
 		doc := NewDocument(&DocumentWithModelAndIdx{
 			Name: "MyFirst",
-		}, nil).(*DocumentWithModelAndIdx)
+		}).(*DocumentWithModelAndIdx)
 		idx := doc.GetAllIndex()
 		So(len(idx), ShouldBeGreaterThan, 0)
 		mi := &mgo.Index{
