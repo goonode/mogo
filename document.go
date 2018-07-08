@@ -44,7 +44,12 @@ type Document interface {
 	GetID() bson.ObjectId
 	SetID(bson.ObjectId)
 
-	MakeAsNew()
+	BsonID() *bson.M
+
+	AsNew()
+
+	SetCInfo(*mgo.ChangeInfo)
+	GetCInfo() *mgo.ChangeInfo
 }
 
 // RefField ...
@@ -71,6 +76,9 @@ type DocumentModel struct {
 
 	// Model lifecycle flags
 	exists bool `bson:"-"`
+
+	// mgo.ChangeInfo
+	cinfo *mgo.ChangeInfo `bson:"-"`
 }
 
 // SetIsNew satisfies the new tracker interface
@@ -93,11 +101,30 @@ func (d *DocumentModel) SetID(id bson.ObjectId) {
 	d.ID = id
 }
 
-// MakeAsNew assign a new ID to the current document so it can
+// BsonID returns the document id using bson.M interface style
+// This method can be directly used with Find, but not with FindID
+// which expects directly id interface{} (i.e. d.ID/d.GetID())
+func (d *DocumentModel) BsonID() *bson.M {
+	return &bson.M{
+		"_id": d.GetID(),
+	}
+}
+
+// AsNew assign a new ID to the current document so it can
 // be considered as a new document.
-func (d *DocumentModel) MakeAsNew() {
+func (d *DocumentModel) AsNew() {
 	d.ID = bson.NewObjectId()
 	d.SetIsNew(true)
+}
+
+// GetCInfo gets the document cinfo field (see mgo.upsert)
+func (d *DocumentModel) GetCInfo() *mgo.ChangeInfo {
+	return d.cinfo
+}
+
+// SetCInfo sets the document cinfo field
+func (d *DocumentModel) SetCInfo(ci *mgo.ChangeInfo) {
+	d.cinfo = ci
 }
 
 // SetCreated sets the created date
@@ -153,7 +180,7 @@ func (d *DocumentModel) GetParsedIndex(name string) []ParsedIndex {
 		panic("the document model is not registered")
 	}
 
-	return ri.Index[name]
+	return ri.Indexes[name]
 }
 
 // GetAllParsedIndex return all stored parsed indexes
@@ -163,7 +190,7 @@ func (d *DocumentModel) GetAllParsedIndex() map[string][]ParsedIndex {
 		panic("the document model is not registered")
 	}
 
-	return ri.Index
+	return ri.Indexes
 }
 
 // GetIndex return the mgo.Index struct required to mgo.EnsureIndex method
@@ -248,10 +275,7 @@ func NewDocument(d interface{}) interface{} {
 		n, ri, _ = ModelRegistry.Exists(d)
 	}
 	t := ri.Type
-	v := reflect.ValueOf(d)
-	if reflect.TypeOf(d).Kind() == reflect.Ptr {
-		v = reflect.ValueOf(d).Elem()
-	}
+	v := ValueOf(d)
 	i := ModelRegistry.Index(n) // The dm
 
 	r := reflect.New(t)
