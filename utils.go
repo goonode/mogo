@@ -25,3 +25,16 @@ func GetBsonName(field reflect.StructField) string {
 
 	return lowerInitial(field.Name)
 }
+
+// ValueOf return the reflect Value of d
+func ValueOf(d interface{}) reflect.Value {
+	var v reflect.Value
+
+	if reflect.TypeOf(d).Kind() == reflect.Ptr {
+		v = reflect.ValueOf(d).Elem()
+	} else {
+		v = reflect.ValueOf(d)
+	}
+
+	return v
+}
