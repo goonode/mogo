@@ -35,7 +35,7 @@ type Registry interface {
 	Index(string) int
 	TypeOf(string) reflect.Type
 
-	// New(interface{}) interface{}
+	New(string) interface{}
 }
 
 // ModelInternals contains some internal information about the model
@@ -47,7 +47,7 @@ type ModelInternals struct {
 
 	// Model internal data
 	Collection string
-	Index      map[string][]ParsedIndex
+	Indexes    map[string][]ParsedIndex
 	Refs       map[string]RefIndex
 }
 
@@ -117,7 +117,7 @@ func (r ModelReg) Register(i ...interface{}) {
 			Idx:        Idx,
 			Type:       t,
 			Collection: coll,
-			Index:      pi,
+			Indexes:    pi,
 			Refs:       refs}
 	}
 
@@ -176,15 +176,45 @@ func (r ModelReg) Index(n string) int {
 	return -1
 }
 
-// New ...
-// func (r ModelReg) New(i interface{}) interface{} {
-// 	n := reflect.TypeOf(i).Name()
-// 	if t, ok := modelRegistry[n]; ok {
-// 		return reflect.New(t.Type).Elem().Interface()
-// 	}
+// Refs returns the Refs of the DocumentModel field in the struct
+// or nil if the struct name passed is not found
+func (r ModelReg) Refs(n string) map[string]RefIndex {
+	if v, ok := ModelRegistry[n]; ok {
+		return v.Refs
+	}
 
-// 	return nil
-// }
+	return nil
+}
+
+// SearchRef performs a search for n in Refs map and returns the *ModelInternals
+// and *RefIndex if found it, or nil if not found.
+func (r ModelReg) SearchRef(i interface{}, n string) (*ModelInternals, *RefIndex) {
+	if _, v, ok := r.Exists(i); ok {
+		for k, vv := range v.Refs {
+			if k == n {
+				return v, &vv
+			}
+		}
+	}
+
+	return nil, nil
+}
+
+// New ...
+func (r ModelReg) New(n string) interface{} {
+	if n, m, ok := ModelRegistry.ExistByName("Child"); ok {
+		v := reflect.New(m.Type)
+
+		df := v.Elem().Field(m.Idx)
+		d := df.Interface().(DocumentModel)
+		d.iname = n
+		df.Set(reflect.ValueOf(d))
+
+		return v.Interface()
+	}
+
+	return nil
+}
 
 // Connect to the database using the provided config
 func (m *Connection) Connect() (err error) {
@@ -237,7 +267,7 @@ func (m *Connection) Collection(name string) *Collection {
 	return m.CollectionFromDatabase(name, m.Config.Database)
 }
 
-func getRefIndex(idx int, tag string, fname string) RefIndex {
+func buildRefIndex(idx int, tag string, fname string) RefIndex {
 	if tag != "" {
 		if ModelRegistry.Index(tag) == -1 {
 			return RefIndex{
@@ -274,13 +304,13 @@ func initializeTags(t reflect.Type, v reflect.Value) (map[string][]ParsedIndex, 
 				break
 			}
 			if ft.Type.ConvertibleTo(reflect.TypeOf(RefField{})) {
-				r := getRefIndex(i, ft.Tag.Get("ref"), ft.Name)
+				r := buildRefIndex(i, ft.Tag.Get("ref"), ft.Name)
 				ref[ft.Name] = r
 			}
 			fallthrough
 		case reflect.Slice:
 			if ft.Type.ConvertibleTo(reflect.TypeOf([]RefField{})) {
-				r := getRefIndex(i, ft.Tag.Get("ref"), t.Name())
+				r := buildRefIndex(i, ft.Tag.Get("ref"), t.Name())
 				ref[ft.Name] = r
 			}
 			fallthrough
