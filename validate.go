@@ -14,7 +14,7 @@ func ValidateRequired(val interface{}) bool {
 
 // ValidateMongoIDRef ...
 func ValidateMongoIDRef(id bson.ObjectId, collection *Collection) bool {
-	count, err := collection.Collection().Find(bson.M{"_id": id}).Count()
+	count, err := collection.C().Find(bson.M{"_id": id}).Count()
 
 	if err != nil || count <= 0 {
 		return false
