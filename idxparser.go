@@ -51,9 +51,10 @@ func IndexScan(src string) []ParsedIndex {
 	var s scanner.Scanner
 	var parsed []ParsedIndex
 
+	src = TrimAllSpaces(src)
 	fset := token.NewFileSet()
 	file := fset.AddFile("", fset.Base(), len(src))
-	s.Init(file, []byte(TrimAllSpaces(src)), nil /* no error handler */, scanner.ScanComments)
+	s.Init(file, []byte(src), nil /* no error handler */, scanner.ScanComments)
 
 	// Repeated calls to Scan yield the token sequence found in the input.
 	lb := false
