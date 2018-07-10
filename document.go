@@ -1,6 +1,7 @@
 package bongo
 
 import (
+	"errors"
 	"reflect"
 	"time"
 
@@ -30,12 +31,20 @@ type Model interface {
 	// Connection
 
 	GetConn() *Connection
-	SetConn(c *Connection)
+	SetConn(*Connection)
 
 	// Model
 
-	GetIName() string
-	RestoreIName(n string)
+	GetMe() (iname string, me interface{})
+	SetMe(iname string, me interface{})
+
+	// Query
+	Find(interface{}) *Query
+	FindID(interface{}) *Query
+
+	// Database Ops
+	Save() error
+	Remove() error
 }
 
 // Document ...
@@ -47,6 +56,8 @@ type Document interface {
 	BsonID() *bson.M
 
 	AsNew()
+	AsDocument() Document
+	AsModel() Model
 
 	SetCInfo(*mgo.ChangeInfo)
 	GetCInfo() *mgo.ChangeInfo
@@ -73,6 +84,8 @@ type DocumentModel struct {
 
 	// Model index in registry
 	iname string `bson:"-"`
+	// Me
+	me interface{}
 
 	// Model lifecycle flags
 	exists bool `bson:"-"`
@@ -115,6 +128,24 @@ func (d *DocumentModel) BsonID() *bson.M {
 func (d *DocumentModel) AsNew() {
 	d.ID = bson.NewObjectId()
 	d.SetIsNew(true)
+}
+
+// AsDocument tranforms the DocumentModel to Document interface
+func (d *DocumentModel) AsDocument() Document {
+	if dI, ok := d.me.(Document); ok {
+		return dI
+	}
+
+	return nil
+}
+
+// AsModel tranforms the DocumentModel to Document interface
+func (d *DocumentModel) AsModel() Model {
+	if dI, ok := d.me.(Model); ok {
+		return dI
+	}
+
+	return nil
 }
 
 // GetCInfo gets the document cinfo field (see mgo.upsert)
@@ -250,17 +281,146 @@ func (d *DocumentModel) GetConn() *Connection {
 	return DBConn
 }
 
-// GetIName is used to save the DocumentModel struct of the document.
+// GetMe is used to save the iname, me fields of the document model.
 // This is useful after returning from one of a find method where mgo
 // driver return a freshly create zero filled struct.DocumentModel
 // Note: mgo should consider bson "-" tag also on unmarshal
-func (d *DocumentModel) GetIName() string {
-	return d.iname
+func (d *DocumentModel) GetMe() (iname string, me interface{}) {
+	return d.iname, d.me
 }
 
-// RestoreIName is used to restore the DocumentModel struct
-func (d *DocumentModel) RestoreIName(n string) {
-	d.iname = n
+// SetMe is used to set the iname and me fields
+func (d *DocumentModel) SetMe(iname string, me interface{}) {
+	d.iname = iname
+	d.me = me
+}
+
+// Find is the wrapper method to mgo Find
+func (d *DocumentModel) Find(query interface{}) *Query {
+	q := &Query{
+		MgoC: d.GetColl().C(),
+		MgoQ: d.GetColl().C().Find(query),
+	}
+
+	return q
+}
+
+// FindID is a wrapper to the mgo FindId
+func (d *DocumentModel) FindID(id interface{}) *Query {
+	q := &Query{
+		MgoC: d.GetColl().C(),
+		MgoQ: d.GetColl().C().FindId(id),
+	}
+
+	return q
+}
+
+// Save ...
+func (d *DocumentModel) Save() error {
+	var err error
+	var cinfo *mgo.ChangeInfo
+
+	c := d.GetColl()
+	sess := c.Connection.Session.Clone()
+	defer sess.Close()
+
+	// Per mgo's recommendation, create a clone of the session so there is no blocking
+	col := c.collectionOnSession(sess)
+
+	err = c.PreSave(d.me.(Model))
+	if err != nil {
+		return err
+	}
+
+	// If the model implements the NewTracker interface, we'll use that to determine newness. Otherwise always assume it's new
+	isNew := true
+	if newt, ok := d.me.(NewTracker); ok {
+		isNew = newt.IsNew()
+	}
+
+	// Add created/modified time. Also set on the model itself if it has those fields.
+	now := time.Now()
+	if tt, ok := d.me.(TimeCreatedTracker); ok && isNew {
+		tt.SetCreated(now)
+	}
+
+	if tt, ok := d.me.(TimeModifiedTracker); ok {
+		tt.SetModified(now)
+	}
+
+	// If the model has indexes we create them here...
+	idxs := d.GetAllIndex()
+	for i := range idxs {
+		err = col.EnsureIndex(*idxs[i])
+		if err != nil {
+			return err
+		}
+	}
+
+	id := d.GetID()
+	if !isNew && !id.Valid() {
+		return errors.New("New tracker says this document isn't new but there is no valid Id field")
+	}
+
+	if isNew && !id.Valid() {
+		// Generate an Id
+		id = bson.NewObjectId()
+		d.SetID(id)
+	}
+
+	cinfo, err = col.UpsertId(id, d.me)
+	d.SetCInfo(cinfo)
+
+	if err != nil {
+		return err
+	}
+
+	if hook, ok := d.me.(AfterSaveHook); ok {
+		err = hook.AfterSave()
+		if err != nil {
+			return err
+		}
+	}
+
+	// We saved it, no longer new
+	if newt, ok := d.me.(NewTracker); ok {
+		newt.SetIsNew(false)
+	}
+
+	return nil
+}
+
+// Remove removes document from database, running
+// before and after delete hooks
+func (d *DocumentModel) Remove() error {
+	var err error
+	// Create a new session per mgo's suggestion to avoid blocking
+	c := d.GetColl()
+	sess := c.Connection.Session.Clone()
+	defer sess.Close()
+	col := c.collectionOnSession(sess)
+
+	if hook, ok := d.me.(BeforeDeleteHook); ok {
+		err := hook.BeforeDelete()
+		if err != nil {
+			return err
+		}
+	}
+
+	err = col.RemoveId(d.GetID())
+
+	if err != nil {
+		return err
+	}
+
+	if hook, ok := d.me.(AfterDeleteHook); ok {
+		err = hook.AfterDelete()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (d DocumentNotFoundError) Error() string {
@@ -284,6 +444,7 @@ func NewDocument(d interface{}) interface{} {
 	df := r.Elem().Field(i)
 	dm := df.Interface().(DocumentModel)
 	dm.iname = n
+	dm.me = r.Interface()
 	df.Set(reflect.ValueOf(dm))
 
 	return r.Interface()
