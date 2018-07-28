@@ -116,7 +116,7 @@ func (c *Collection) Find(query interface{}) *Query {
 	return q
 }
 
-// Populate ... TODO:
+// Populate ... TODO: To be done...
 func (c *Collection) Populate(doc Document, query interface{}, ref string) *Query {
 	i, r := ModelRegistry.SearchRef(doc, ref)
 	v := ModelRegistry.New(ref)

@@ -37,32 +37,37 @@ type hookedDocument struct {
 	RanAfterFind    bool
 }
 
-func (h *hookedDocument) BeforeSave(c *Collection) error {
+func (h *hookedDocument) BeforeSave() error {
 	h.RanBeforeSave = true
+	c := h.GetColl()
 	So(c.Context.Get("foo"), ShouldEqual, "bar")
 	return nil
 }
 
-func (h *hookedDocument) AfterSave(c *Collection) error {
+func (h *hookedDocument) AfterSave() error {
 	h.RanAfterSave = true
+	c := h.GetColl()
 	So(c.Context.Get("foo"), ShouldEqual, "bar")
 	return nil
 }
 
-func (h *hookedDocument) BeforeDelete(c *Collection) error {
+func (h *hookedDocument) BeforeDelete() error {
 	h.RanBeforeDelete = true
+	c := h.GetColl()
 	So(c.Context.Get("foo"), ShouldEqual, "bar")
 	return nil
 }
 
-func (h *hookedDocument) AfterDelete(c *Collection) error {
+func (h *hookedDocument) AfterDelete() error {
 	h.RanAfterDelete = true
+	c := h.GetColl()
 	So(c.Context.Get("foo"), ShouldEqual, "bar")
 	return nil
 }
 
-func (h *hookedDocument) AfterFind(c *Collection) error {
+func (h *hookedDocument) AfterFind() error {
 	h.RanAfterFind = true
+	c := h.GetColl()
 	So(c.Context.Get("foo"), ShouldEqual, "bar")
 	return nil
 }
@@ -72,31 +77,32 @@ type validatedDocument struct {
 	Name          string
 }
 
-func (v *validatedDocument) Validate(c *Collection) []error {
+func (v *validatedDocument) Validate() []error {
 	return []error{errors.New("test validation error")}
 }
 
 func TestCollection(t *testing.T) {
-
 	conn := getConnection()
 	defer conn.Session.Close()
 
+	ModelRegistry.Register(noHookDocument{}, hookedDocument{})
+
 	Convey("Saving", t, func() {
 		Convey("should be able to save a document with no hooks, update id, and use new tracker", func() {
-
-			doc := NewDocument(noHookDocument{}).(*noHookDocument)
+			doc := NewDoc(noHookDocument{}).(*noHookDocument)
 			doc.Name = "foo"
 			So(doc.IsNew(), ShouldEqual, true)
 
-			err := conn.Collection(doc.GetCollName()).Save(doc)
+			// err := Save(&doc)
+			err := doc.Save()
 			So(err, ShouldEqual, nil)
 			So(doc.ID.Valid(), ShouldEqual, true)
 			So(doc.IsNew(), ShouldEqual, false)
 		})
 
 		Convey("should be able to save a document with save hooks", func() {
-			doc := NewDocument(hookedDocument{}).(*hookedDocument)
-			err := conn.Collection(doc.GetCollName()).Save(doc)
+			doc := NewDoc(hookedDocument{}).(*hookedDocument)
+			err := Save(doc)
 
 			So(err, ShouldEqual, nil)
 			So(doc.RanBeforeSave, ShouldEqual, true)
@@ -104,8 +110,8 @@ func TestCollection(t *testing.T) {
 		})
 
 		Convey("should return a validation error if the validate method has things in the return value", func() {
-			doc := NewDocument(validatedDocument{}).(*validatedDocument)
-			err := conn.Collection(doc.GetCollName()).Save(doc)
+			doc := NewDoc(validatedDocument{}).(*validatedDocument)
+			err := doc.Save()
 
 			v, ok := err.(*ValidationError)
 			So(ok, ShouldEqual, true)
@@ -113,33 +119,33 @@ func TestCollection(t *testing.T) {
 		})
 
 		Convey("should be able to save an existing document", func() {
-			doc := NewDocument(noHookDocument{}).(*noHookDocument)
+			doc := NewDoc(noHookDocument{}).(*noHookDocument)
 			doc.Name = "foo"
 			So(doc.IsNew(), ShouldEqual, true)
 
-			err := conn.Collection(doc.GetCollName()).Save(doc)
+			err := doc.Save()
 			So(err, ShouldEqual, nil)
 			So(doc.ID.Valid(), ShouldEqual, true)
 			So(doc.IsNew(), ShouldEqual, false)
 
-			err = conn.Collection(doc.GetCollName()).Save(doc)
+			err = Save(doc)
 
 			So(err, ShouldEqual, nil)
-			count, err := conn.Collection(doc.GetCollName()).Collection().Count()
+			count, err := doc.GetColl().C().Count()
 			So(err, ShouldEqual, nil)
 			So(count, ShouldEqual, 1)
 		})
 
 		Convey("should set created and modified dates", func() {
 
-			doc := NewDocument(noHookDocument{}).(*noHookDocument)
+			doc := NewDoc(noHookDocument{}).(*noHookDocument)
 			doc.Name = "foo"
 
-			err := conn.Collection(doc.GetCollName()).Save(doc)
+			err := Save(doc)
 			So(err, ShouldEqual, nil)
 			So(doc.Created.UnixNano(), ShouldEqual, doc.GetModified().UnixNano())
 
-			err = conn.Collection(doc.GetCollName()).Save(doc)
+			err = Save(doc)
 			So(err, ShouldEqual, nil)
 			So(doc.Modified.UnixNano(), ShouldBeGreaterThan, doc.GetCreated().UnixNano())
 		})
@@ -149,31 +155,34 @@ func TestCollection(t *testing.T) {
 		})
 	})
 
-	Convey("FindByID", t, func() {
-		doc := NewDocument(noHookDocument{}).(*noHookDocument)
-		err := conn.Collection(doc.GetCollName()).Save(doc)
+	Convey("Find by ID", t, func() {
+		doc := NewDoc(noHookDocument{}).(*noHookDocument)
+		err := Save(doc)
+		So(err, ShouldEqual, nil)
+
+		d2 := NewDoc(hookedDocument{}).(*hookedDocument)
+		err = Save(d2)
 		So(err, ShouldEqual, nil)
 
 		Convey("should find a doc by id", func() {
-			newDoc := NewDocument(noHookDocument{}).(*noHookDocument)
-			err := conn.Collection(doc.GetCollName()).FindByID(doc.GetID(), newDoc)
+			newDoc := NewDoc(noHookDocument{}).(*noHookDocument)
+			err := newDoc.FindID(doc.GetID()).One(newDoc)
 			So(err, ShouldEqual, nil)
 			So(newDoc.ID.Hex(), ShouldEqual, doc.ID.Hex())
 		})
 
 		Convey("should find a doc by id and run afterFind", func() {
-			newDoc := NewDocument(hookedDocument{}).(*hookedDocument)
-			err := conn.Collection(doc.GetCollName()).FindByID(doc.GetID(), newDoc)
+			newDoc := NewDoc(hookedDocument{}).(*hookedDocument)
+			err := newDoc.FindByID(d2.GetID(), newDoc)
 			So(err, ShouldEqual, nil)
-			So(newDoc.ID.Hex(), ShouldEqual, doc.ID.Hex())
+			So(newDoc.ID.Hex(), ShouldEqual, d2.ID.Hex())
 			So(newDoc.RanAfterFind, ShouldEqual, true)
 		})
 
 		Convey("should return a document not found error if doc not found", func() {
-
-			err := conn.Collection(doc.GetCollName()).FindByID(bson.NewObjectId(), doc)
-			_, ok := err.(*DocumentNotFoundError)
-			So(ok, ShouldEqual, true)
+			var newDoc = NewDoc(&noHookDocument{}).(*noHookDocument)
+			err := FindID(newDoc, bson.NewObjectId()).One(newDoc)
+			So(err.Error(), ShouldEqual, "not found")
 		})
 
 		Reset(func() {
@@ -182,14 +191,14 @@ func TestCollection(t *testing.T) {
 	})
 
 	Convey("FindOne", t, func() {
-		doc := NewDocument(noHookDocument{}).(*noHookDocument)
+		doc := NewDoc(hookedDocument{}).(*hookedDocument)
 		doc.Name = "foo"
-		err := conn.Collection(doc.GetCollName()).Save(doc)
+		err := Save(doc)
 		So(err, ShouldEqual, nil)
 
 		Convey("should find one with query", func() {
-			newDoc := NewDocument(noHookDocument{}).(*noHookDocument)
-			err := conn.Collection(doc.GetCollName()).FindOne(bson.M{
+			newDoc := NewDoc(hookedDocument{}).(*hookedDocument)
+			err := newDoc.FindOne(bson.M{
 				"name": "foo",
 			}, newDoc)
 			So(err, ShouldEqual, nil)
@@ -197,8 +206,8 @@ func TestCollection(t *testing.T) {
 		})
 
 		Convey("should find one with query and run afterFind", func() {
-			newDoc := NewDocument(hookedDocument{}).(*hookedDocument)
-			err := conn.Collection(doc.GetCollName()).FindOne(bson.M{
+			newDoc := NewDoc(hookedDocument{}).(*hookedDocument)
+			err := newDoc.FindOne(bson.M{
 				"name": "foo",
 			}, newDoc)
 			So(err, ShouldEqual, nil)
@@ -213,33 +222,33 @@ func TestCollection(t *testing.T) {
 
 	Convey("Delete", t, func() {
 		Convey("should be able delete a document", func() {
-			doc := NewDocument(noHookDocument{}).(*noHookDocument)
+			doc := NewDoc(noHookDocument{}).(*noHookDocument)
 			doc.Name = "foo"
 
-			err := conn.Collection(doc.GetCollName()).Save(doc)
+			err := Save(doc)
 			So(err, ShouldEqual, nil)
 
-			err = conn.Collection(doc.GetCollName()).DeleteDocument(doc)
+			err = Remove(doc)
 			So(err, ShouldEqual, nil)
 
-			count, err := conn.Collection(doc.GetCollName()).Collection().Count()
+			count, err := doc.GetColl().C().Count()
 
 			So(err, ShouldEqual, nil)
 			So(count, ShouldEqual, 0)
 		})
 
 		Convey("should be able delete a document and run hooks", func() {
-			doc := NewDocument(hookedDocument{}).(*hookedDocument)
+			doc := NewDoc(hookedDocument{}).(*hookedDocument)
 			doc.Name = "foo"
 			doc.Surname = "bar"
 
-			err := conn.Collection(doc.GetCollName()).Save(doc)
+			err := Save(doc)
 			So(err, ShouldEqual, nil)
 
-			err = conn.Collection(doc.GetCollName()).DeleteDocument(doc)
+			err = Remove(doc)
 			So(err, ShouldEqual, nil)
 
-			count, err := conn.Collection(doc.GetCollName()).Collection().Count()
+			count, err := doc.GetColl().C().Count()
 
 			So(err, ShouldEqual, nil)
 			So(count, ShouldEqual, 0)
@@ -248,38 +257,34 @@ func TestCollection(t *testing.T) {
 			So(doc.RanAfterDelete, ShouldEqual, true)
 		})
 
-		Convey("should be able delete a document with DeleteOne", func() {
-			doc := NewDocument(noHookDocument{}).(*noHookDocument)
+		Convey("should be able delete a document with RemoveBySelector", func() {
+			doc := NewDoc(noHookDocument{}).(*noHookDocument)
 			doc.Name = "foo"
 
-			err := conn.Collection(doc.GetCollName()).Save(doc)
+			err := Save(doc)
 			So(err, ShouldEqual, nil)
 
-			err = conn.Collection(doc.GetCollName()).DeleteOne(bson.M{
+			err = RemoveBySelector(doc, bson.M{
 				"_id": doc.ID,
 			})
 			So(err, ShouldEqual, nil)
 
-			count, err := conn.Collection(doc.GetCollName()).Collection().Count()
-
+			count, err := doc.GetColl().C().Count()
 			So(err, ShouldEqual, nil)
 			So(count, ShouldEqual, 0)
 		})
 
-		Convey("should be able delete a document with Delete", func() {
-			doc := NewDocument(noHookDocument{}).(*noHookDocument)
+		Convey("should be able delete a document with Remove", func() {
+			doc := NewDoc(noHookDocument{}).(*noHookDocument)
 			doc.Name = "foo"
 
-			err := conn.Collection(doc.GetCollName()).Save(doc)
+			err := Save(doc)
 			So(err, ShouldEqual, nil)
 
-			info, err := conn.Collection(doc.GetCollName()).Delete(bson.M{
-				"_id": doc.ID,
-			})
+			err = doc.Remove()
 			So(err, ShouldEqual, nil)
-			So(info.Removed, ShouldEqual, 1)
 
-			count, err := conn.Collection(doc.GetCollName()).Collection().Count()
+			count, err := doc.GetColl().C().Count()
 
 			So(err, ShouldEqual, nil)
 			So(count, ShouldEqual, 0)
@@ -298,7 +303,7 @@ func TestCollectionWithSlice(t *testing.T) {
 			cMap["White"] = []extraData{
 				extraData{SubColors: []string{"WhiteWhite", "WhiteYellow"}},
 			}
-			doc := NewDocument(noHookDocumentWithSlice{
+			doc := NewDoc(noHookDocumentWithSlice{
 				Name:     "Bongo",
 				Colors:   []string{"Red", "Green"},
 				ColorMap: cMap,
@@ -313,7 +318,7 @@ func TestCollectionWithSlice(t *testing.T) {
 			doc.Name = "foo"
 			So(doc.IsNew(), ShouldEqual, true)
 
-			err := conn.Collection(doc.GetCollName()).Save(doc)
+			err := Save(doc)
 			So(err, ShouldEqual, nil)
 			So(doc.ID.Valid(), ShouldEqual, true)
 			So(doc.IsNew(), ShouldEqual, false)
