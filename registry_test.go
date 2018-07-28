@@ -63,3 +63,27 @@ func TestRegisterRef(t *testing.T) {
 		So(ModelRegistry["Bongo"].Refs["Friends"].Exists, ShouldBeTrue)
 	})
 }
+
+func TestInterfaceNameFunc(t *testing.T) {
+	var mr ModelReg
+
+	mr.Register(noHookDocument{},
+		hookedDocument{})
+	Convey("should return the name of the passed name", t, func() {
+		n := interfaceName(map[string]*noHookDocument{})
+		So(n, ShouldEqual, "noHookDocument")
+		n = interfaceName(map[string]noHookDocument{})
+		So(n, ShouldEqual, "noHookDocument")
+		n = interfaceName(&[]*noHookDocument{})
+		So(n, ShouldEqual, "noHookDocument")
+		n = interfaceName([]*noHookDocument{})
+		So(n, ShouldEqual, "noHookDocument")
+		n = interfaceName([]noHookDocument{})
+		So(n, ShouldEqual, "noHookDocument")
+		n = interfaceName(&noHookDocument{})
+		So(n, ShouldEqual, "noHookDocument")
+		n = interfaceName(noHookDocument{})
+		So(n, ShouldEqual, "noHookDocument")
+	})
+
+}

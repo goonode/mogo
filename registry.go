@@ -299,23 +299,23 @@ func initializeTags(t reflect.Type, v reflect.Value) (map[string][]ParsedIndex, 
 		switch ft.Type.Kind() {
 		case reflect.Struct:
 			if ft.Type.ConvertibleTo(reflect.TypeOf(DocumentModel{})) {
-				coll = ft.Tag.Get("coll")
-				pi[ft.Type.Name()] = IndexScan(ft.Tag.Get("idx"))
+				coll = extractColl(ft)
+				pi[ft.Type.Name()] = IndexScan(extractIdx(ft))
 				break
 			}
 			if ft.Type.ConvertibleTo(reflect.TypeOf(RefField{})) {
-				r := buildRefIndex(i, ft.Tag.Get("ref"), ft.Name)
+				r := buildRefIndex(i, extractRef(ft), ft.Name)
 				ref[ft.Name] = r
 			}
 			fallthrough
 		case reflect.Slice:
 			if ft.Type.ConvertibleTo(reflect.TypeOf([]RefField{})) {
-				r := buildRefIndex(i, ft.Tag.Get("ref"), t.Name())
+				r := buildRefIndex(i, extractRef(ft), t.Name())
 				ref[ft.Name] = r
 			}
 			fallthrough
 		default:
-			pi[ft.Name] = IndexScan(ft.Tag.Get("idx"))
+			pi[ft.Name] = IndexScan(extractIdx(ft))
 			logBadColl(ft)
 		}
 	}
@@ -324,7 +324,58 @@ func initializeTags(t reflect.Type, v reflect.Value) (map[string][]ParsedIndex, 
 }
 
 func logBadColl(sf reflect.StructField) {
-	if sf.Tag.Get("coll") != "" {
-		log.Printf("Tag 'coll' used outside DocumentModel is ignored (field: %s)", sf.Name)
+	if extractColl(sf) != "" {
+		log.Printf("Tag collection used outside DocumentModel is ignored (field: %s)", sf.Name)
 	}
+}
+
+func extractColl(sf reflect.StructField) string {
+	coll := sf.Tag.Get("coll")
+	if coll == "" {
+		coll = sf.Tag.Get("collection")
+	}
+
+	return coll
+}
+
+func extractIdx(sf reflect.StructField) string {
+	idx := sf.Tag.Get("idx")
+	if idx == "" {
+		idx = sf.Tag.Get("index")
+	}
+
+	return idx
+}
+
+func extractRef(sf reflect.StructField) string {
+	ref := sf.Tag.Get("ref")
+	if ref == "" {
+		ref = sf.Tag.Get("reference")
+	}
+
+	return ref
+}
+
+func interfaceName(i interface{}) string {
+	var n string
+
+	v := reflect.ValueOf(i)
+	switch v.Kind() {
+	case reflect.Slice:
+		fallthrough
+	case reflect.Map:
+		inner := v.Type().Elem()
+		switch inner.Kind() {
+		case reflect.Ptr:
+			n = v.Type().Elem().Elem().Name()
+		default:
+			n = v.Type().Elem().Name()
+		}
+	case reflect.Ptr:
+		return interfaceName(reflect.Indirect(v).Interface())
+	default:
+		n = v.Type().Name()
+	}
+
+	return n
 }
