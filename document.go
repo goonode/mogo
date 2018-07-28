@@ -68,14 +68,6 @@ type RefField struct {
 	ID bson.ObjectId `bson:"_id,omitempty" json:"_id"`
 }
 
-// CascadingDocument ...
-type CascadingDocument interface {
-	GetCascade(*Collection) []*CascadeConfig
-}
-
-// DocumentNotFoundError ...
-type DocumentNotFoundError struct{}
-
 // DocumentModel ...
 type DocumentModel struct {
 	ID       bson.ObjectId `bson:"_id,omitempty" json:"_id"`
@@ -298,8 +290,9 @@ func (d *DocumentModel) SetMe(iname string, me interface{}) {
 // Find is the wrapper method to mgo Find
 func (d *DocumentModel) Find(query interface{}) *Query {
 	q := &Query{
-		MgoC: d.GetColl().C(),
-		MgoQ: d.GetColl().C().Find(query),
+		MgoC:       d.GetColl().C(),
+		MgoQ:       d.GetColl().C().Find(query),
+		Pagination: nil,
 	}
 
 	return q
@@ -308,11 +301,22 @@ func (d *DocumentModel) Find(query interface{}) *Query {
 // FindID is a wrapper to the mgo FindId
 func (d *DocumentModel) FindID(id interface{}) *Query {
 	q := &Query{
-		MgoC: d.GetColl().C(),
-		MgoQ: d.GetColl().C().FindId(id),
+		MgoC:       d.GetColl().C(),
+		MgoQ:       d.GetColl().C().FindId(id),
+		Pagination: nil,
 	}
 
 	return q
+}
+
+// FindOne is a shortcut for Find().One()
+func (d *DocumentModel) FindOne(query interface{}, result interface{}) error {
+	return d.Find(query).One(result)
+}
+
+// FindByID is a shortcut for FindID().One()
+func (d *DocumentModel) FindByID(id interface{}, result interface{}) error {
+	return d.FindID(id).One(result)
 }
 
 // Save ...
@@ -327,7 +331,7 @@ func (d *DocumentModel) Save() error {
 	// Per mgo's recommendation, create a clone of the session so there is no blocking
 	col := c.collectionOnSession(sess)
 
-	err = c.PreSave(d.me.(Model))
+	err = c.PreSave(d.me.(Document))
 	if err != nil {
 		return err
 	}
@@ -423,14 +427,14 @@ func (d *DocumentModel) Remove() error {
 	return nil
 }
 
-func (d DocumentNotFoundError) Error() string {
-	return "Document not found"
-}
+// NewDoc ...
+func NewDoc(d interface{}) interface{} {
+	var n string
+	var ri *ModelInternals
+	var ok bool
 
-// NewDocument ...
-func NewDocument(d interface{}) interface{} {
-	n, ri, ok := ModelRegistry.Exists(d)
-	if !ok { // Trying to register
+	n, ri, ok = ModelRegistry.ExistByName(interfaceName(d))
+	if !ok { // Trying to register (?to be removed?)
 		ModelRegistry.Register(d)
 		n, ri, _ = ModelRegistry.Exists(d)
 	}
@@ -448,4 +452,9 @@ func NewDocument(d interface{}) interface{} {
 	df.Set(reflect.ValueOf(dm))
 
 	return r.Interface()
+}
+
+// MakeDoc (no returning new) adds the DocumentModel to an existant interface ((TODO))
+func MakeDoc(d interface{}) interface{} {
+	return nil
 }
