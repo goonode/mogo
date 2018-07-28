@@ -8,6 +8,11 @@ import (
 )
 
 func TestValidation(t *testing.T) {
+	connection := getConnection()
+	defer connection.Session.Close()
+
+	ModelRegistry.Register(noHookDocument{}, hookedDocument{})
+
 	Convey("Validation", t, func() {
 		Convey("ValidateRequired()", func() {
 			So(ValidateRequired("foo"), ShouldEqual, true)
@@ -22,7 +27,6 @@ func TestValidation(t *testing.T) {
 		})
 
 		Convey("ValidateMongoIDRef()", func() {
-			connection := getConnection()
 
 			defer func() {
 				connection.Session.DB("bongotest").DropDatabase()
@@ -32,13 +36,12 @@ func TestValidation(t *testing.T) {
 
 			doc := &noHookDocument{}
 
-			err := connection.Collection("docs").Save(doc)
+			err := Save(doc)
 
 			So(err, ShouldEqual, nil)
-			So(ValidateMongoIDRef(doc.ID, connection.Collection("docs")), ShouldEqual, true)
-			So(ValidateMongoIDRef(bson.NewObjectId(), connection.Collection("docs")), ShouldEqual, false)
+			So(ValidateMongoIDRef(doc.ID, doc.GetColl()), ShouldEqual, true)
+			So(ValidateMongoIDRef(bson.NewObjectId(), doc.GetColl()), ShouldEqual, false)
 			So(ValidateMongoIDRef(bson.NewObjectId(), connection.Collection("other_collection")), ShouldEqual, false)
-
 		})
 	})
 }
