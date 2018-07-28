@@ -26,15 +26,30 @@ func GetBsonName(field reflect.StructField) string {
 	return lowerInitial(field.Name)
 }
 
-// ValueOf return the reflect Value of d
+// ValueOf return the reflect Value of d. In case of slice or map
+// it reduces to a new primitive type.
 func ValueOf(d interface{}) reflect.Value {
-	var v reflect.Value
+	v := reflect.ValueOf(d)
 
-	if reflect.TypeOf(d).Kind() == reflect.Ptr {
-		v = reflect.ValueOf(d).Elem()
-	} else {
-		v = reflect.ValueOf(d)
+	if v.Type().Kind() == reflect.Slice || v.Type().Kind() == reflect.Map {
+		inner := v.Type().Elem()
+		switch inner.Kind() {
+		case reflect.Ptr:
+			v = reflect.New(inner.Elem()).Elem()
+		default:
+			v = reflect.New(inner).Elem()
+		}
+	} else if v.Type().Kind() == reflect.Ptr {
+		return ValueOf(reflect.Indirect(v).Interface())
 	}
 
 	return v
+}
+
+func isSlice(s interface{}) bool {
+	if reflect.TypeOf(s).Kind() != reflect.Slice {
+		return false
+	}
+
+	return true
 }
