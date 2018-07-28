@@ -9,7 +9,7 @@ import (
 )
 
 // PreSave ...
-func (c *Collection) PreSave(doc Model) error {
+func (c *Collection) PreSave(doc Document) error {
 	// Validate?
 	if validator, ok := doc.(ValidateHook); ok {
 		errs := validator.Validate()
