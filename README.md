@@ -1,5 +1,6 @@
 # This is a fork 
-Actually this fork is in active development phase and it could not be usable yet.
+This fork aims to be a re-thinking of the already developed concepts, nearest to the backend mgo driver, but without giving up the simplicity of use. It is in active development phase and it could not be usable yet.
+
 If you are searching for the original library follow [this link](https://github.com/go-bongo/bongo). 
 
 # What's Bongo?
@@ -14,6 +15,7 @@ Bongo is tested using the fantasic GoConvey (https://github.com/smartystreets/go
 # Usage
 
 ## Basic Usage
+
 ### Import the Library
 `go get github.com/goonode/bongo`
 
@@ -75,11 +77,11 @@ ModelRegistry.Register(Bongo{}, Macao{})
 ### Create a Document
 
 Any struct can be used as a document as long as it embed the `DocumentModel` struct. The `DocumentModel` provided with Bongo implements the `Document` interface as well as the `Model`, `NewTracker`, `TimeCreatedTracker` and `TimeModifiedTracker` interfaces (to keep track of new/existing documents and created/modified timestamps). 
-The `DocumentModel` must be embeded with `bson:",inline"` tag otherwise you will get nested behavior when the data goes to your database. Also it requires the `coll` tag which will be used to assign the model to a mongo collection. The `coll:` tag can be used only on this field of the struct, and a document can only have one collection.
-The `idx:` tag can be used to create indexes (the index feature is in development stage and very limited at the moment). 
-The syntax for the `idx:` tag is `{field1,...},unique,sparse,...`. The field name must follow the bson tag specs.
+The `DocumentModel` must be embeded with `bson:",inline"` tag otherwise you will get nested behavior when the data goes to your database. Also it requires the `coll` or `collection` tag which will be used to assign the model to a mongo collection. The `coll` tag can be used only on this field of the struct, and a document can only have one collection.
+The `idx` or `index` tag can be used to create indexes (the index feature is in development stage and very limited at the moment). 
+The syntax for the `idx` tag is `{field1,...},unique,sparse,...`. The field name must follow the bson tag specs.
 
-The recommended way to define a new document model is by calling the `NewDocument`, that returns a pointer to a newly created document.
+The recommended way to define a new document model is by calling the `NewDoc`, that returns a pointer to a newly created document.
 
 
 For example:
@@ -93,7 +95,7 @@ type Person struct {
 }
 
 func main() {
-	Person := NewDocumentModel(Person{}, nil).(*Person)
+	Person := NewDoc(Person{}, nil).(*Person)
 	...
 }
 ```
@@ -118,7 +120,7 @@ type Person struct {
 }
 
 func main() {
-	Person := NewDocument(Person{}).(*Person)
+	Person := NewDoc(Person{}).(*Person)
 	...
 }
 ```
@@ -143,21 +145,21 @@ type Person struct {
 }
 
 func main() {
-	Person := NewDocument(Person{}).(*Person)
+	Person := NewDoc(Person{}).(*Person)
 	...
 }
 ```
 
 #### Hooks
 
-You can add special methods to your document type that will automatically get called by bongo during certain actions. Hooks get passed the current `*bongo.Collection` so you can avoid having to couple them with your actual database layer. Currently available hooks are:
+You can add special methods to your document type that will automatically get called by bongo during certain actions. Currently available hooks are:
 
-* `func (s *ModelStruct) Validate(*bongo.Collection) []error` (returns a slice of errors - if it is empty then it is assumed that validation succeeded)
-* `func (s *ModelStruct) BeforeSave(*bongo.Collection) error`
-* `func (s *ModelStruct) AfterSave(*bongo.Collection) error`
-* `func (s *ModelStruct) BeforeDelete(*bongo.Collection) error`
-* `func (s *ModelStruct) AfterDelete(*bongo.Collection) error`
-* `func (s *ModelStruct) AfterFind(*bongo.Collection) error`
+* `func (s *DocumentStruct) Validate() []error` (returns a slice of errors - if it is empty then it is assumed that validation succeeded)
+* `func (s *DocumentStruct) BeforeSave() error`
+* `func (s *DocumentStruct) AfterSave() error`
+* `func (s *DocumentStruct) BeforeDelete() error`
+* `func (s *DocumentStruct) AfterDelete() error`
+* `func (s *DocumentStruct) AfterFind() error`
 
 ### Saving Models
 
@@ -165,11 +167,21 @@ Just call `Save` helper func on a `DocumentModel` instance.
 The `DocumentModel` must have a connection binded to it before calling `Save`
 
 ```go
-myPerson := NewDocumentModel(Person{}, connection).(*Person)
+myPerson := NewDoc(Person{}, connection).(*Person)
 myPerson.FirstName = "Bingo"
 myPerson.LastName = "Bongo"
 
 err := Save(myPerson)
+```
+
+or the equivalent form:
+
+```go
+myPerson := NewDoc(Person{}, connection).(*Person)
+myPerson.FirstName = "Bingo"
+myPerson.LastName = "Bongo"
+
+err := myPerson.Save()
 ```
 
 Now you'll have a new document in the collection `user-coll` as defined into the Person model. 
@@ -182,96 +194,82 @@ if vErr, ok := err.(*bongo.ValidationError); ok {
 	fmt.Println("Got a real error:", err.Error())
 }
 ```
-<!-- 
+
 ### Deleting Documents
 
-There are three ways to delete a document.
+There are many ways to delete a document.
 
-#### DeleteDocument
-Same thing as `Save` - just call `DeleteDocument` on the collection and pass the document instance.
+#### Remove / RemoveAll
+Same thing as `Save` - just call `Remove` passing the `Document` instance or RemoveAll by passing a slice of `Document`.
 ```go
-err := connection.Collection("people").DeleteDocument(person)
+err := Remove(person)
 ```
 
 This *will* run the `BeforeDelete` and `AfterDelete` hooks, if applicable.
 
-#### DeleteOne
-This just delegates to `mgo.Collection.Remove`. It will *not* run the `BeforeDelete` and `AfterDelete` hooks.
+#### RemoveBySelector / RemoveAllBySelector
+This just delegates to `mgo.Collection.Remove` and `mgo.Collection.RemoveAll`. It will *not* run the `BeforeDelete` and `AfterDelete` hooks. 
+The RemoveAllBySelector accepts a map of selectors for which the key is the interface name of the model and returns a map of `*ChangeInfoWithError` one for each passed interface. 
 
 ```go
-err := connection.Collection("people").DeleteOne(bson.M{"FirstName":"Testy"})
-```
-
-#### Delete
-This delegates to `mgo.Collection.RemoveAll`. It will *not* run the `BeforeDelete` and `AfterDelete` hooks.
-```go
-changeInfo, err := connection.Collection("people").Delete(bson.M{"FirstName":"Testy"})
-fmt.Printf("Deleted %d documents", changeInfo.Removed)
+err := RemoveBySelector(bson.M{"FirstName":"Testy"})
 ```
 
 
-### Find by ID
+### Finding
+
+There are several ways to make a find. Finding methods are glued to the mgo driver so each method can use mgo driver directly (this way also disable the hooks execution).
+The Query and Iter objects are defined as extensions of the mgo equivalent and for this reason all results are to be accessed using the iterator. 
+
+The define a query the Query object can be used as for example:
 
 ```go
-person := &Person{}
-err := connection.Collection("people").FindByID(bson.ObjectIdHex(StringId), person)
-```
+conn := getConnection()
+defer conn.Session.Close()
 
-The error returned can be a `DocumentNotFoundError` or a more low-level MongoDB error. To check, use a type assertion:
+ModelRegistry.Register(noHookDocument{}, hookedDocument{})
 
-```go
-if dnfError, ok := err.(*bongo.DocumentNotFoundError); ok {
-	fmt.Println("document not found")
-} else {
-	fmt.Println("real error " + err.Error())
+doc := NewDoc(noHookDocument{}).(*noHookDocument)
+
+iter := doc.Find(nil).Iter()
+for iter.Next(doc) {
+	count++
 }
 ```
 
-### Find
+### Pagination: Paginate and NextPage
 
-Finds will return an instance of `ResultSet`, which you can then optionally `Paginate` and iterate through to get all results.
-
-```go
-
-// *bongo.ResultSet
-results := connection.Collection("people").Find(bson.M{"firstName":"Bob"})
-
-person := &Person{}
-
-count := 0
-
-for results.Next(person) {
-	fmt.Println(person.FirstName)
-}
-```
-
-To paginate, you can run `Paginate(perPage int, currentPage int)` on the result of `connection.Find()`. That will return an instance of `bongo.PaginationInfo`, with properties like `TotalRecords`, `RecordsOnPage`, etc.
-
-To use additional functions like `sort`, `skip`, `limit`, etc, you can access the underlying mgo `Query` via `ResultSet.Query`.
-
-### Find One
-Same as find, but it will populate the reference of the struct you provide as the second argument.
-
+To enable pagination you need to call the Query.Paginate() method and the NextPage iterator.
 
 ```go
+conn := getConnection()
+defer conn.Session.Close()
 
-person := &Person{}
+ModelRegistry.Register(noHookDocument{}, hookedDocument{})
 
-err := connection.Collection("people").FindOne(bson.M{"firstName":"Bob"}, person)
+doc := NewDoc(noHookDocument{}).(*noHookDocument)
 
-if err != nil {
-	fmt.Println(err.Error())
-} else {
-	fmt.Println("Found user:", person.FirstName)
+iter := doc.Find(nil).Paginate(3).Iter()
+results := make([]*noHookDocument, 3) 
+
+for iter.NextPage(&results) {
+	...
 }
+
 ```
+
+
+### FindOne and FindByID
+
+You can use `doc.FindOne()` and `doc.FindByID()` as replacement of `doc.Find().One()` and `doc.FindID().One()` 
+
 
 ## Change Tracking
 If your model struct implements the `Trackable` interface, it will automatically track changes to your model so you can compare the current values with the original. For example:
 
 ```go
 type MyModel struct {
-	bongo.DocumentBase `bson:",inline"`
+	bongo.DocumentModel `bson:",inline"`
 	StringVal string
 	diffTracker *bongo.DiffTracker
 }
@@ -285,7 +283,7 @@ func (m *MyModel) GetDiffTracker() *DiffTracker {
 	return m.diffTracker
 }
 
-myModel := &MyModel{}
+myModel := NewDoc(&MyModel{}).(*MyModel{})
 ```
 
 Use as follows:
@@ -321,102 +319,3 @@ fmt.Println(isNew, modifiedFields) // false, []
 
 ### Diff-tracking Session
 If you are going to be checking more than one field, you should instantiate a new `DiffTrackingSession` with `diffTracker.NewSession(useBsonTags bool)`. This will load the changed fields into the session. Otherwise with each call to `diffTracker.Modified()`, it will have to recalculate the changed fields.
-
-
-## Cascade Save/Delete
-Bongo supports cascading portions of documents to related documents and the subsequent cleanup upon deletion. For example, if you have a `Team` collection, and each team has an array of `Players`, you can cascade a player's first name and last name to his or her `team.Players` array on save, and remove that element in the array if you delete the player.
-
-To use this feature, your struct needs to have an exported method called `GetCascade`, which returns an array of `*bongo.CascadeConfig`. Additionally, if you want to make use of the `OldQuery` property to remove references from previously related documents, you should probably alsotimplement the `DiffTracker` on your model struct (see above).
-
-You can also leave `ThroughProp` blank, in which case the properties of the document will be cascaded directly onto the related document. This is useful when you want to cascade `ObjectId` properties or other references, but it is important that you keep in mind that these properties will be nullified on the related document when the main doc is deleted or changes references.
-
-Also note that like the above hooks, the `GetCascade` method will be passed the instance of the `bongo.Collection` so you can keep your models decoupled from your database layer.
-
-### Casade Configuration
-```go
-type CascadeConfig struct {
-	// The collection to cascade to
-	Collection *mgo.Collection
-
-	// The relation type (does the target doc have an array of these docs [REL_MANY] or just reference a single doc [REL_ONE])
-	RelType int
-
-	// The property on the related doc to populate
-	ThroughProp string
-
-	// The query to find related docs
-	Query bson.M
-
-	// The data that constructs the query may have changed - this is to remove self from previous relations
-	OldQuery bson.M
-
-	// Properties that will be cascaded/deleted. Can (should) be in dot notation for nested properties. This is used to nullify properties when there is an OldQuery or if the document is deleted.
-	Properties []string
-
-	// The actual data that will be cascade
-	Data interface{}
-}
-```
-
-### Example
-```go
-type ChildRef struct {
-	Id bson.ObjectId `bson:"_id" json:"_id"`
-	Name string
-}
-func (c *Child) GetCascade(collection *bongo.Collection) []*bongo.CascadeConfig {
-	connection := collection.Connection
-	rel := &ChildRef {
-		Id:c.Id,
-		Name:c.Name,
-	}
-	cascadeSingle := &bongo.CascadeConfig{
-		Collection:  connection.Collection("parents").Collection(),
-		Properties:  []string{"name"},
-		Data:rel,
-		ThroughProp: "child",
-		RelType:     bongo.REL_ONE,
-		Query: bson.M{
-			"_id": c.ParentId,
-		},
-	}
-
-	cascadeMulti := &bongo.CascadeConfig{
-		Collection:  connection.Collection("parents").Collection(),
-		Properties:  []string{"name"},
-		Data:rel,
-		ThroughProp: "children",
-		RelType:     bongo.REL_MANY,
-		Query: bson.M{
-			"_id": c.ParentId,
-		},
-	}
-
-	if c.DiffTracker.Modified("ParentId") {
-
-		origId, _ := c.DiffTracker.GetOriginalValue("ParentId")
-		if origId != nil {
-			oldQuery := bson.M{
-				"_id": origId,
-			}
-			cascadeSingle.OldQuery = oldQuery
-			cascadeMulti.OldQuery = oldQuery
-		}
-
-	}
-
-	return []*bongo.CascadeConfig{cascadeSingle, cascadeMulti}
-}
-```
-
-This does the following:
-
-1. When you save a child, it will populate its parent's (defined by `cascadeSingle.Query`) `child` property with an object, consisting of one key/value pair (`name`)
-
-2. When you save a child, it will also modify its parent's (defined by `cascadeMulti.Query`) `children` array, either modifying or pushing to the array of key/value pairs, also with just `name`.
-
-3. When you delete a child, it will use `cascadeSingle.OldQuery` to remove the reference from its previous `parent.child`
-
-4. When you delete a child, it will also use `cascadeMulti.OldQuery` to remove the reference from its previous `parent.children`
-
-Note that the `ThroughProp` must be the actual field name in the database (bson tag), not the property name on the struct. If there is no `ThroughProp`, the data will be cascaded directly onto the root of the document. -->
