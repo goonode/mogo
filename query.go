@@ -207,6 +207,7 @@ func (i *Iter) NextPage(results interface{}) bool {
 	sv := rv.Elem()
 	sv = sv.Slice(0, sv.Cap())
 	l := 0
+	// TODO: error management
 	for i.Next(r) {
 		if sv.Len() == l {
 			sv = reflect.Append(sv, reflect.ValueOf(r))
@@ -220,6 +221,10 @@ func (i *Iter) NextPage(results interface{}) bool {
 
 	rv.Elem().Set(sv.Slice(0, l))
 	i.Pagination.OnPage = l
+
+	if i.Pagination.Page == i.Pagination.Pages {
+		return false
+	}
 
 	return true
 }

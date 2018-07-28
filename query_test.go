@@ -41,14 +41,9 @@ func TestQuery(t *testing.T) {
 			iter := doc.Find(nil).Paginate(3).Iter()
 			results := make([]*noHookDocument, 3)
 
-			iter.NextPage(&results)
-			So(len(results), ShouldEqual, iter.Pagination.OnPage)
-			iter.NextPage(&results)
-			So(len(results), ShouldEqual, iter.Pagination.OnPage)
-			iter.NextPage(&results)
-			So(len(results), ShouldEqual, iter.Pagination.OnPage)
-			iter.NextPage(&results)
-			So(len(results), ShouldEqual, iter.Pagination.OnPage)
+			for iter.NextPage(&results) {
+				So(len(results), ShouldEqual, iter.Pagination.OnPage)
+			}
 		})
 
 		Reset(func() {
