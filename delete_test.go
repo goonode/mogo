@@ -18,16 +18,16 @@ func TestDelete(t *testing.T) {
 
 	Convey("delete using direct and/or wrapper methods", t, func() {
 		Convey("should be able to delete by id", func() {
-			d := NewDocument(hookedDocument{}).(*hookedDocument)
+			d := NewDoc(hookedDocument{}).(*hookedDocument)
 			err := d.GetColl().Save(d)
 			So(err, ShouldBeNil)
-			err = DeleteDocument(d)
+			err = Remove(d)
 			So(err, ShouldBeNil)
-			id := d.GetID()
+			// id := d.GetId()
 
-			e := NewDocument(hookedDocument{}).(*hookedDocument)
-			err = FindByID(e, id)
-			So(err, ShouldResemble, &DocumentNotFoundError{})
+			e := NewDoc(hookedDocument{}).(*hookedDocument)
+			err = FindID(e, d.BsonID()).One(e)
+			So(err.Error(), ShouldEqual, "not found")
 		})
 
 		Reset(func() {
