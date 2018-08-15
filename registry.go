@@ -58,7 +58,7 @@ type ModelReg map[string]*ModelInternals
 var ModelRegistry = make(ModelReg, 0)
 
 // DBConn is the connection initialized after Connect is called.
-// All underlying operation are made using this connection
+// All underlying operations are made using this connection
 var DBConn *Connection
 
 // Connect creates a new connection and run Connect()
@@ -127,6 +127,7 @@ func (r ModelReg) Register(i ...interface{}) {
 			if !vv.Exists {
 				if _, ok := ModelRegistry[vv.Ref]; ok {
 					ModelRegistry[k].Refs[kk] = RefIndex{
+						Model:  k,
 						Idx:    ModelRegistry[k].Refs[kk].Idx,
 						Ref:    ModelRegistry[k].Refs[kk].Ref,
 						Exists: true,
@@ -151,8 +152,8 @@ func (r ModelReg) Exists(i interface{}) (string, *ModelInternals, bool) {
 	return "", nil, false
 }
 
-// ExistByName ...
-func (r ModelReg) ExistByName(n string) (string, *ModelInternals, bool) {
+// ExistsByName ...
+func (r ModelReg) ExistsByName(n string) (string, *ModelInternals, bool) {
 	if t, ok := ModelRegistry[n]; ok {
 		return n, t, true
 	}
@@ -202,7 +203,7 @@ func (r ModelReg) SearchRef(i interface{}, n string) (*ModelInternals, *RefIndex
 
 // New ...
 func (r ModelReg) New(n string) interface{} {
-	if n, m, ok := ModelRegistry.ExistByName("Child"); ok {
+	if n, m, ok := ModelRegistry.ExistsByName("Child"); ok {
 		v := reflect.New(m.Type)
 
 		df := v.Elem().Field(m.Idx)
