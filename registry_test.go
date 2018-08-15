@@ -8,13 +8,13 @@ import (
 )
 
 type Bongo struct {
-	DocumentModel `bson:",inline" coll:"bongo-registry"`
+	DocumentModel `bson:",inline" coll:"bongo-registry"` // The Bongo will be stored in the bongo-registry collection
 	Name          string
-	Friends       []RefField `ref:"Macao"`
+	Friends       []RefField `ref:"Macao"` // The field Friends of Bongo is a reference to a slice of Macao objects
 }
 
 type Macao struct {
-	DocumentModel `bson:",inline" coll:"bongo-registry"`
+	DocumentModel `bson:",inline" coll:"bongo-registry"` // The Macao will be stored in the bongo-registry collection
 	Name          string
 }
 
@@ -46,10 +46,6 @@ func TestRegister(t *testing.T) {
 		So(t, ShouldResemble, reflect.TypeOf(hookedDocument{}))
 	})
 
-	// Convey("should make a new instance of the passed model", t, func() {
-	// 	h := mr.New(hookedDocument{}).(*hookedDocument)
-	// 	So(reflect.TypeOf(h), ShouldResemble, reflect.TypeOf(hookedDocument{}))
-	// })
 }
 
 func TestRegisterRef(t *testing.T) {
