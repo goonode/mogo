@@ -4,7 +4,6 @@ import (
 	"go/scanner"
 	"go/token"
 	"strings"
-	"unicode"
 
 	"github.com/globalsign/mgo"
 )
@@ -22,6 +21,9 @@ type ParsedIndex struct {
 
 // RefIndex contains the referenced objects
 type RefIndex struct {
+	// The docuemnt model name
+	Model string
+
 	// The referenced object name
 	Ref string
 
@@ -30,17 +32,6 @@ type RefIndex struct {
 
 	// Whenever the reference object exists in the Registry
 	Exists bool
-}
-
-// TrimAllSpaces removes all spaces from the passed string and
-// returns the trimmed string
-func TrimAllSpaces(src string) string {
-	return strings.Map(func(r rune) rune {
-		if unicode.IsSpace(r) {
-			return -1
-		}
-		return r
-	}, src)
 }
 
 // IndexScan ...
