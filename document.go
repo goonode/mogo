@@ -186,9 +186,9 @@ func (d *DocumentModel) GetCollName() string {
 func (d *DocumentModel) SetCollName(name string) {
 }
 
-// GetColl implementation for Model interface (why may you need to change collection name ?)
+// GetColl implementation for Model interface
 func (d *DocumentModel) GetColl() *Collection {
-	_, ri, ok := ModelRegistry.ExistByName(d.iname)
+	_, ri, ok := ModelRegistry.ExistsByName(d.iname)
 	if !ok {
 		panic("the document model is not registered")
 	}
@@ -198,7 +198,7 @@ func (d *DocumentModel) GetColl() *Collection {
 
 // GetParsedIndex return the index stored with the passed field name
 func (d *DocumentModel) GetParsedIndex(name string) []ParsedIndex {
-	_, ri, ok := ModelRegistry.ExistByName(d.iname)
+	_, ri, ok := ModelRegistry.ExistsByName(d.iname)
 	if !ok {
 		panic("the document model is not registered")
 	}
@@ -208,7 +208,7 @@ func (d *DocumentModel) GetParsedIndex(name string) []ParsedIndex {
 
 // GetAllParsedIndex return all stored parsed indexes
 func (d *DocumentModel) GetAllParsedIndex() map[string][]ParsedIndex {
-	_, ri, ok := ModelRegistry.ExistByName(d.iname)
+	_, ri, ok := ModelRegistry.ExistsByName(d.iname)
 	if !ok {
 		panic("the document model is not registered")
 	}
@@ -252,7 +252,17 @@ func (d *DocumentModel) GetAllIndex() []*mgo.Index {
 
 // GetRefIndex return the RefIndex struct for the given field
 func (d *DocumentModel) GetRefIndex(name string) RefIndex {
-	_, ri, ok := ModelRegistry.ExistByName(d.iname)
+	_, ri, ok := ModelRegistry.ExistsByName(d.iname)
+	if !ok {
+		panic("the document model is not registered")
+	}
+
+	return ri.Refs[name]
+}
+
+// Ref same as GetRefIndex
+func (d *DocumentModel) Ref(name string) RefIndex {
+	_, ri, ok := ModelRegistry.ExistsByName(d.iname)
 	if !ok {
 		panic("the document model is not registered")
 	}
@@ -433,7 +443,7 @@ func NewDoc(d interface{}) interface{} {
 	var ri *ModelInternals
 	var ok bool
 
-	n, ri, ok = ModelRegistry.ExistByName(interfaceName(d))
+	n, ri, ok = ModelRegistry.ExistsByName(interfaceName(d))
 	if !ok { // Trying to register (?to be removed?)
 		ModelRegistry.Register(d)
 		n, ri, _ = ModelRegistry.Exists(d)
