@@ -53,3 +53,14 @@ func isSlice(s interface{}) bool {
 
 	return true
 }
+
+// TrimAllSpaces removes all spaces from the passed string and
+// returns the trimmed string
+func TrimAllSpaces(src string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) {
+			return -1
+		}
+		return r
+	}, src)
+}
