@@ -34,7 +34,7 @@ func TestValidation(t *testing.T) {
 
 			// Make the doc
 
-			doc := &noHookDocument{}
+			doc := NewDoc(&noHookDocument{}).(*noHookDocument)
 
 			err := Save(doc)
 
