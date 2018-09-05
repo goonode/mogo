@@ -1,4 +1,4 @@
-package bongo
+package mogo
 
 import (
 	"testing"
@@ -10,7 +10,7 @@ import (
 func getConnection() *Connection {
 	conf := &Config{
 		ConnectionString: "localhost",
-		Database:         "bongotest",
+		Database:         "mogotest",
 	}
 
 	conn, err := Connect(conf)
@@ -27,7 +27,7 @@ func TestFailSSLConnec(t *testing.T) {
 	Convey("should fail to connect to a database because of unsupported ssl flag", t, func() {
 		conf := &Config{
 			ConnectionString: "mongodb://localhost?ssl=true",
-			Database:         "bongotest",
+			Database:         "mogotest",
 		}
 
 		_, err := Connect(conf)
@@ -39,7 +39,7 @@ func TestConnect(t *testing.T) {
 	Convey("should be able to connect to a database using a config", t, func() {
 		conf := &Config{
 			ConnectionString: "localhost",
-			Database:         "bongotest",
+			Database:         "mogotest",
 		}
 
 		conn, err := Connect(conf)
@@ -59,7 +59,7 @@ func TestRetrieveCollection(t *testing.T) {
 	Convey("should be able to retrieve a collection instance from a connection", t, func() {
 		conn := getConnection()
 		defer conn.Session.Close()
-		col := conn.Collection("tests");
+		col := conn.Collection("tests")
 		So(col.Name, ShouldEqual, "tests")
 		So(col.Connection, ShouldEqual, conn)
 
@@ -71,12 +71,12 @@ func TestRetrieveCollection(t *testing.T) {
 		conn := getConnection()
 		defer conn.Session.Close()
 
-		col1 := conn.CollectionFromDatabase("tests", "test1");
+		col1 := conn.CollectionFromDatabase("tests", "test1")
 		So(col1.Name, ShouldEqual, "tests")
 		So(col1.Connection, ShouldEqual, conn)
 		So(col1.Database, ShouldEqual, "test1")
 
-		col2 := conn.CollectionFromDatabase("tests", "test2");
+		col2 := conn.CollectionFromDatabase("tests", "test2")
 		So(col2.Name, ShouldEqual, "tests")
 		So(col2.Connection, ShouldEqual, conn)
 		So(col2.Database, ShouldEqual, "test2")

@@ -1,8 +1,6 @@
-package bongo
+package mogo
 
 import (
-	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -106,36 +104,28 @@ func (c *Collection) FindID(id interface{}) *Query {
 	return q
 }
 
-// Find is a wrapper to the mgo Find
+// Find is a wrapper to the mgo Find. This is the entry point to the Query object.
+// Populate makes a call to this method with a special meaning
 func (c *Collection) Find(query interface{}) *Query {
 	q := &Query{
-		MgoC: c.C(),
-		MgoQ: c.C().Find(query),
+		MgoC:     c.C(),
+		Populate: false,
+		Query:    nil,
 	}
 
-	return q
-}
-
-// Populate ... TODO: To be done...
-func (c *Collection) Populate(doc Document, query interface{}, ref string) *Query {
-	i, r := ModelRegistry.SearchRef(doc, ref)
-	v := ModelRegistry.New(ref)
-
-	if v != nil {
-		// Gathering internal infos
-		switch i.Type.Field(r.Idx).Type.Kind() {
-		case reflect.Slice:
-			fallthrough
-		case reflect.Map:
-			fallthrough
-		default:
-			f := ValueOf(doc).Field(r.Idx).Interface().(RefField)
-			q := bson.M{"_id": f.ID}
-			fmt.Println(q, doc.GetColl().C().FullName)
+	if refactor, ok := query.(bson.M); ok {
+		if refactor["$populate"] != nil {
+			refactor["$and"] = refactor["$populate"]
+			delete(refactor, "$populate")
+			q.Populate = true
+			query = refactor
 		}
 	}
 
-	return nil
+	q.Query = query
+	q.MgoQ = c.C().Find(query)
+
+	return q
 }
 
 // FindID is convenience method for Collection.FindID

@@ -1,4 +1,4 @@
-package bongo
+package mogo
 
 import (
 	"errors"
@@ -151,7 +151,7 @@ func TestCollection(t *testing.T) {
 		})
 
 		Reset(func() {
-			conn.Session.DB("bongotest").DropDatabase()
+			conn.Session.DB("mogotest").DropDatabase()
 		})
 	})
 
@@ -186,7 +186,7 @@ func TestCollection(t *testing.T) {
 		})
 
 		Reset(func() {
-			conn.Session.DB("bongotest").DropDatabase()
+			conn.Session.DB("mogotest").DropDatabase()
 		})
 	})
 
@@ -216,7 +216,7 @@ func TestCollection(t *testing.T) {
 		})
 
 		Reset(func() {
-			conn.Session.DB("bongotest").DropDatabase()
+			conn.Session.DB("mogotest").DropDatabase()
 		})
 	})
 
@@ -304,7 +304,7 @@ func TestCollectionWithSlice(t *testing.T) {
 				extraData{SubColors: []string{"WhiteWhite", "WhiteYellow"}},
 			}
 			doc := NewDoc(noHookDocumentWithSlice{
-				Name:     "Bongo",
+				Name:     "mogo",
 				Colors:   []string{"Red", "Green"},
 				ColorMap: cMap,
 				SubColor: extraData{

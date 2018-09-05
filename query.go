@@ -1,10 +1,12 @@
-package bongo
+package mogo
 
 import (
+	"fmt"
 	"math"
 	"reflect"
 
 	"github.com/globalsign/mgo"
+	"github.com/globalsign/mgo/bson"
 )
 
 // Query is the mgo.Query wrapper
@@ -13,6 +15,13 @@ type Query struct {
 	MgoQ *mgo.Query
 
 	Pagination *Paginate
+
+	// Populate if true says this query is a populate type query
+	Populate bool
+
+	// Query is the query used to build the mgo.Query. In case of populate query its type is bson.M
+	// with $and operator to merge with the target id(s) of the target Model
+	Query interface{}
 }
 
 // Iter is the mgo.Iter wrapper
@@ -34,6 +43,13 @@ type Paginate struct {
 	OnPage int `json:"onPage"` // Records in current page
 }
 
+// PopulateInfo ...
+type PopulateInfo struct {
+	RefField RefIndex
+	Query    *Query
+	Iter     *Iter
+}
+
 // C direct access to mgo driver Collection layer
 func (q *Query) C() *mgo.Collection {
 	return q.MgoC
@@ -44,9 +60,33 @@ func (q *Query) Q() *mgo.Query {
 	return q.MgoQ
 }
 
-// All is a wrapper around mgo.Query.All
+// Find makes a query filter and returns a Query object. If q is a populate type of Query
+// object append the filter to the $and array.
+//
+//
+func (q *Query) Find(query interface{}) *Query {
+	if q.Populate {
+		if _, ok := query.(bson.M); ok {
+			refactor := q.Query.(bson.M)
+			refactor["$and"] = append(refactor["$and"].([]bson.M), query.(bson.M))
+			q.MgoQ = q.MgoC.Find(q.Query)
+			return q
+		}
+
+		panic(fmt.Sprintf("query parameter should be of type bson.M for populate query, is %T", query))
+	}
+
+	// Add case: query is not of populate type make an $and or replace existing
+	//  replace existings for now (mae an and doesn't make sense at now)
+	q.Query = query
+	q.MgoQ = q.MgoC.Find(q.Query)
+
+	return q
+}
+
+// All is a wrapper around mgo.Query.All (TODO: hooks should be triggered)
 func (q *Query) All(result interface{}) error {
-	return nil
+	return q.MgoQ.All(result)
 }
 
 // Iter is a wrapper around mgo.Query.Iter
@@ -97,7 +137,7 @@ func (q *Query) One(result interface{}) error {
 	if d, ok = result.(Document); ok {
 		iname, _ = d.GetMe()
 	} else {
-		panic("result is not a bongo document")
+		panic("result is not a mogo document")
 	}
 
 	if err = q.MgoQ.One(result); err != nil {
@@ -122,7 +162,7 @@ func (q *Query) One(result interface{}) error {
 	return nil
 }
 
-// Next is a wrapper around mgo.Iter.Next. It executes AfterFindHook and the updates
+// Next is a wrapper around mgo.Iter.Next. It executes AfterFindHook and updates
 // the NewTracker interface if needed.
 func (i *Iter) Next(result interface{}) bool {
 	var iname string
@@ -133,7 +173,7 @@ func (i *Iter) Next(result interface{}) bool {
 	if d, ok = result.(Document); ok {
 		iname, _ = d.GetMe()
 	} else {
-		panic("result is not a bongo document")
+		panic("result is not a mogo document")
 	}
 
 	if ok = i.MgoI.Next(result); !ok {

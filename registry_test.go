@@ -1,6 +1,7 @@
-package bongo
+package mogo
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -8,13 +9,14 @@ import (
 )
 
 type Bongo struct {
-	DocumentModel `bson:",inline" coll:"bongo-registry"` // The Bongo will be stored in the bongo-registry collection
+	DocumentModel `bson:",inline" coll:"mogo-registry"` // The mogo will be stored in the mogo-registry collection
 	Name          string
-	Friends       []RefField `ref:"Macao"` // The field Friends of Bongo is a reference to a slice of Macao objects
+	Friends       RefFieldSlice `ref:"Macao"` // The field Friends of mogo is a reference to a slice of Macao objects
+	BestFriend    RefField      `ref:"Macao"`
 }
 
 type Macao struct {
-	DocumentModel `bson:",inline" coll:"bongo-registry"` // The Macao will be stored in the bongo-registry collection
+	DocumentModel `bson:",inline" coll:"mogo-registry"` // The Macao will be stored in the mogo-registry collection
 	Name          string
 }
 
@@ -55,9 +57,16 @@ func TestRegisterRef(t *testing.T) {
 		So(ok, ShouldBeTrue)
 		_, _, ok = ModelRegistry.Exists(Macao{})
 		So(ok, ShouldBeTrue)
-		So(ModelRegistry["Bongo"].Refs["Friends"].Ref, ShouldEqual, "Macao")
-		So(ModelRegistry["Bongo"].Refs["Friends"].Exists, ShouldBeTrue)
+		So(ModelRegistry["mogo"].Refs["Friends"].Ref, ShouldEqual, "Macao")
+		So(ModelRegistry["mogo"].Refs["Friends"].Exists, ShouldBeTrue)
 	})
+}
+
+func TestNewFunc(t *testing.T) {
+	ModelRegistry.Register(Bongo{}, Macao{})
+
+	macao := ModelRegistry.New("Macao").(*Macao)
+	fmt.Println(macao.Name)
 }
 
 func TestInterfaceNameFunc(t *testing.T) {

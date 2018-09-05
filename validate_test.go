@@ -1,4 +1,4 @@
-package bongo
+package mogo
 
 import (
 	"testing"
@@ -29,7 +29,7 @@ func TestValidation(t *testing.T) {
 		Convey("ValidateMongoIDRef()", func() {
 
 			defer func() {
-				connection.Session.DB("bongotest").DropDatabase()
+				connection.Session.DB("mogotest").DropDatabase()
 			}()
 
 			// Make the doc

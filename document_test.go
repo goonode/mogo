@@ -1,4 +1,4 @@
-package bongo
+package mogo
 
 import (
 	"testing"
@@ -9,7 +9,7 @@ import (
 
 func init() {
 	_, _ = Connect(&Config{
-		Database:         "bongotest",
+		Database:         "mogotest",
 		ConnectionString: "localhost",
 	})
 }
@@ -225,7 +225,7 @@ func TestDocumentSave(t *testing.T) {
 		})
 
 		Reset(func() {
-			conn.Session.DB("bongotest").DropDatabase()
+			conn.Session.DB("mogotest").DropDatabase()
 		})
 	})
 }

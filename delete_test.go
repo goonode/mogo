@@ -1,4 +1,4 @@
-package bongo
+package mogo
 
 import (
 	"testing"
@@ -9,7 +9,7 @@ import (
 func TestDelete(t *testing.T) {
 	conn, _ := Connect(&Config{
 		ConnectionString: "localhost",
-		Database:         "bongotest",
+		Database:         "mogotest",
 	})
 	conn.Context.Set("foo", "bar")
 	defer DBConn.Session.Close()
@@ -31,7 +31,7 @@ func TestDelete(t *testing.T) {
 		})
 
 		Reset(func() {
-			conn.Session.DB("bongotest").DropDatabase()
+			conn.Session.DB("mogotest").DropDatabase()
 		})
 	})
 }

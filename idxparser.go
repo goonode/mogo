@@ -1,8 +1,9 @@
-package bongo
+package mogo
 
 import (
 	"go/scanner"
 	"go/token"
+	"reflect"
 	"strings"
 
 	"github.com/globalsign/mgo"
@@ -19,7 +20,7 @@ type ParsedIndex struct {
 	stickyField  bool
 }
 
-// RefIndex contains the referenced objects
+// RefIndex contains the object stored as reference in database
 type RefIndex struct {
 	// The docuemnt model name
 	Model string
@@ -29,6 +30,12 @@ type RefIndex struct {
 
 	// The field index in the parsed struct
 	Idx int
+
+	// The kind of the field (slice or other)
+	Kind reflect.Kind
+
+	// The type of the field
+	Type reflect.Type
 
 	// Whenever the reference object exists in the Registry
 	Exists bool

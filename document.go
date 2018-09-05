@@ -1,4 +1,4 @@
-package bongo
+package mogo
 
 import (
 	"errors"
@@ -39,10 +39,12 @@ type Model interface {
 	SetMe(iname string, me interface{})
 
 	// Query
+
 	Find(interface{}) *Query
 	FindID(interface{}) *Query
 
 	// Database Ops
+
 	Save() error
 	Remove() error
 }
@@ -63,11 +65,6 @@ type Document interface {
 	GetCInfo() *mgo.ChangeInfo
 }
 
-// RefField ...
-type RefField struct {
-	ID bson.ObjectId `bson:"_id,omitempty" json:"_id"`
-}
-
 // DocumentModel ...
 type DocumentModel struct {
 	ID       bson.ObjectId `bson:"_id,omitempty" json:"_id"`
@@ -85,6 +82,14 @@ type DocumentModel struct {
 	// mgo.ChangeInfo
 	cinfo *mgo.ChangeInfo `bson:"-"`
 }
+
+// RefField is a reference field to another model. The recevier will return the real object.
+type RefField struct {
+	ID bson.ObjectId `bson:"_id,omitempty" json:"_id"`
+}
+
+// RefFieldSlice is a slice of RefField. The receiver will return an Iterator to this field.
+type RefFieldSlice []*RefField
 
 // SetIsNew satisfies the new tracker interface
 func (d *DocumentModel) SetIsNew(isNew bool) {
@@ -115,7 +120,7 @@ func (d *DocumentModel) BsonID() *bson.M {
 	}
 }
 
-// AsNew assign a new ID to the current document so it can
+// AsNew assigns a new ID to the current document so it can
 // be considered as a new document.
 func (d *DocumentModel) AsNew() {
 	d.ID = bson.NewObjectId()
@@ -196,7 +201,7 @@ func (d *DocumentModel) GetColl() *Collection {
 	return DBConn.Collection(ri.Collection)
 }
 
-// GetParsedIndex return the index stored with the passed field name
+// GetParsedIndex returns the index stored with the passed field name
 func (d *DocumentModel) GetParsedIndex(name string) []ParsedIndex {
 	_, ri, ok := ModelRegistry.ExistsByName(d.iname)
 	if !ok {
@@ -206,7 +211,7 @@ func (d *DocumentModel) GetParsedIndex(name string) []ParsedIndex {
 	return ri.Indexes[name]
 }
 
-// GetAllParsedIndex return all stored parsed indexes
+// GetAllParsedIndex returns all stored parsed indexes
 func (d *DocumentModel) GetAllParsedIndex() map[string][]ParsedIndex {
 	_, ri, ok := ModelRegistry.ExistsByName(d.iname)
 	if !ok {
@@ -216,7 +221,7 @@ func (d *DocumentModel) GetAllParsedIndex() map[string][]ParsedIndex {
 	return ri.Indexes
 }
 
-// GetIndex return the mgo.Index struct required to mgo.EnsureIndex method
+// GetIndex returns the mgo.Index struct required to mgo.EnsureIndex method
 // using the ParsedIndex information stored for passed field name.
 // TODO: discard bad formatted indexes
 func (d *DocumentModel) GetIndex(name string) []*mgo.Index {
@@ -232,7 +237,7 @@ func (d *DocumentModel) GetIndex(name string) []*mgo.Index {
 	return nil
 }
 
-// GetAllIndex return the mgo.Index struct required to mgo.EnsureIndex method
+// GetAllIndex returns the mgo.Index struct required to mgo.EnsureIndex method
 // using the ParsedIndex information stored in the index map of the Model.
 // TODO: discard bad formatted indexes
 func (d *DocumentModel) GetAllIndex() []*mgo.Index {
@@ -250,7 +255,7 @@ func (d *DocumentModel) GetAllIndex() []*mgo.Index {
 	return nil
 }
 
-// GetRefIndex return the RefIndex struct for the given field
+// GetRefIndex returns the RefIndex struct for the given field
 func (d *DocumentModel) GetRefIndex(name string) RefIndex {
 	_, ri, ok := ModelRegistry.ExistsByName(d.iname)
 	if !ok {
@@ -286,7 +291,7 @@ func (d *DocumentModel) GetConn() *Connection {
 // GetMe is used to save the iname, me fields of the document model.
 // This is useful after returning from one of a find method where mgo
 // driver return a freshly create zero filled struct.DocumentModel
-// Note: mgo should consider bson "-" tag also on unmarshal
+// Note: mgo should consider bson "-" tag also on unmarshal, actually overwrites it
 func (d *DocumentModel) GetMe() (iname string, me interface{}) {
 	return d.iname, d.me
 }
@@ -322,6 +327,43 @@ func (d *DocumentModel) FindID(id interface{}) *Query {
 // FindOne is a shortcut for Find().One()
 func (d *DocumentModel) FindOne(query interface{}, result interface{}) error {
 	return d.Find(query).One(result)
+}
+
+// Populate builds a Query to populate the referenced field (see scratch)
+// The returned Query object refers to the target field object not the original one.
+func (d *DocumentModel) Populate(f string) *Query {
+	_, i, _ := ModelRegistry.Exists(d.me)
+	if i == nil { // model is not registered
+		return nil
+	}
+
+	r := i.Refs[f]
+	if !r.Exists { // Field name not exists
+		return nil
+	}
+
+	iField := reflect.ValueOf(d.me).Elem().Field(r.Idx).Interface()
+	t := ModelRegistry.New(r.Ref).(Document)
+	var q = bson.M{"$populate": make([]bson.M, 0)}
+
+	switch i.Refs[f].Kind {
+	case reflect.Slice:
+		var inner = bson.M{"$or": make([]bson.M, 0)}
+
+		field := iField.(RefFieldSlice)
+		for i := range field {
+			inner["$or"] = append(inner["$or"].([]bson.M), bson.M{"_id": field[i].ID})
+		}
+		q["$populate"] = append(q["$populate"].([]bson.M), inner)
+		return Find(t, q)
+	default:
+		field := iField.(RefField)
+		var inner = bson.M{"_id": field.ID}
+
+		q["$populate"] = append(q["$populate"].([]bson.M), inner)
+		return Find(t, q)
+	}
+
 }
 
 // FindByID is a shortcut for FindID().One()

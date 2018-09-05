@@ -1,4 +1,4 @@
-package bongo
+package mogo
 
 import (
 	"testing"

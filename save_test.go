@@ -1,4 +1,4 @@
-package bongo
+package mogo
 
 import (
 	"fmt"
@@ -27,7 +27,7 @@ type Person struct {
 func TestSave(t *testing.T) {
 	conn, _ := Connect(&Config{
 		ConnectionString: "localhost",
-		Database:         "bongotest",
+		Database:         "mogotest",
 	})
 	conn.Context.Set("foo", "bar")
 	defer DBConn.Session.Close()
@@ -65,7 +65,7 @@ func TestSave(t *testing.T) {
 		})
 
 		Reset(func() {
-			conn.Session.DB("bongotest").DropDatabase()
+			conn.Session.DB("mogotest").DropDatabase()
 		})
 	})
 }
@@ -73,7 +73,7 @@ func TestSave(t *testing.T) {
 func TestSaveWithChildStruct(t *testing.T) {
 	conn, _ := Connect(&Config{
 		ConnectionString: "localhost",
-		Database:         "bongotest",
+		Database:         "mogotest",
 	})
 	conn.Context.Set("foo", "bar")
 	defer DBConn.Session.Close()
@@ -84,13 +84,13 @@ func TestSaveWithChildStruct(t *testing.T) {
 		Convey("should be able to save or update", func() {
 			d := NewDoc(Person{
 				FirstName: "Bingo",
-				LastName:  "Bongo",
+				LastName:  "mogo",
 			}).(*Person)
 			d.HomeAddress.Street = "Main"
 			err := d.GetColl().Save(d)
 
 			d = NewDoc(Person{
-				FirstName: "Bongo",
+				FirstName: "mogo",
 				LastName:  "Bingo",
 			}).(*Person)
 			d.HomeAddress.Street = "Main" // Unique index violation
@@ -100,7 +100,7 @@ func TestSaveWithChildStruct(t *testing.T) {
 		})
 
 		Reset(func() {
-			conn.Session.DB("bongotest").DropDatabase()
+			conn.Session.DB("mogotest").DropDatabase()
 		})
 	})
 }

@@ -1,4 +1,4 @@
-package bongo
+package mogo
 
 import (
 	"errors"
@@ -36,6 +36,8 @@ type Registry interface {
 	TypeOf(string) reflect.Type
 
 	New(string) interface{}
+
+	Field(string, interface{}) interface{}
 }
 
 // ModelInternals contains some internal information about the model
@@ -130,6 +132,8 @@ func (r ModelReg) Register(i ...interface{}) {
 						Model:  k,
 						Idx:    ModelRegistry[k].Refs[kk].Idx,
 						Ref:    ModelRegistry[k].Refs[kk].Ref,
+						Kind:   ModelRegistry[k].Refs[kk].Kind,
+						Type:   ModelRegistry[k].Refs[kk].Type,
 						Exists: true,
 					}
 				}
@@ -203,7 +207,7 @@ func (r ModelReg) SearchRef(i interface{}, n string) (*ModelInternals, *RefIndex
 
 // New ...
 func (r ModelReg) New(n string) interface{} {
-	if n, m, ok := ModelRegistry.ExistsByName("Child"); ok {
+	if n, m, ok := ModelRegistry.ExistsByName(n); ok {
 		v := reflect.New(m.Type)
 
 		df := v.Elem().Field(m.Idx)
@@ -215,6 +219,11 @@ func (r ModelReg) New(n string) interface{} {
 	}
 
 	return nil
+}
+
+// Field meturn the field the passed document model
+func (r ModelReg) Field(i int, d interface{}) reflect.Value {
+	return reflect.ValueOf(d).Elem().Field(i)
 }
 
 // Connect to the database using the provided config
@@ -268,12 +277,14 @@ func (m *Connection) Collection(name string) *Collection {
 	return m.CollectionFromDatabase(name, m.Config.Database)
 }
 
-func buildRefIndex(idx int, tag string, fname string) RefIndex {
+func buildRefIndex(idx int, tag string, fname string, t reflect.Type) RefIndex {
 	if tag != "" {
 		if ModelRegistry.Index(tag) == -1 {
 			return RefIndex{
 				Idx:    idx,
 				Ref:    tag,
+				Kind:   t.Kind(),
+				Type:   t,
 				Exists: false,
 			}
 		}
@@ -281,6 +292,8 @@ func buildRefIndex(idx int, tag string, fname string) RefIndex {
 		return RefIndex{
 			Idx:    idx,
 			Ref:    tag,
+			Kind:   t.Kind(),
+			Type:   t,
 			Exists: true,
 		}
 	}
@@ -305,13 +318,13 @@ func initializeTags(t reflect.Type, v reflect.Value) (map[string][]ParsedIndex, 
 				break
 			}
 			if ft.Type.ConvertibleTo(reflect.TypeOf(RefField{})) {
-				r := buildRefIndex(i, extractRef(ft), ft.Name)
+				r := buildRefIndex(i, extractRef(ft), ft.Name, ft.Type)
 				ref[ft.Name] = r
 			}
 			fallthrough
 		case reflect.Slice:
-			if ft.Type.ConvertibleTo(reflect.TypeOf([]RefField{})) {
-				r := buildRefIndex(i, extractRef(ft), t.Name())
+			if ft.Type.ConvertibleTo(reflect.TypeOf([]RefField{})) || ft.Type.ConvertibleTo(reflect.TypeOf([]*RefField{})) {
+				r := buildRefIndex(i, extractRef(ft), t.Name(), ft.Type)
 				ref[ft.Name] = r
 			}
 			fallthrough

@@ -1,12 +1,13 @@
-package bongo
+package mogo
 
 import (
 	"fmt"
 
-	"github.com/go-bongo/go-dotaccess"
-	// "github.com/go-bongo/mgo/bson"
+	// "github.com/go-mogo/mgo/bson"
 	"reflect"
 	"strings"
+
+	dotaccess "github.com/go-bongo/go-dotaccess"
 )
 
 // DiffTracker ...
