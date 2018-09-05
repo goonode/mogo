@@ -1,6 +1,6 @@
 
 # What's Mogo?
-Mogo is a wrapper for mgo (https://github.com/globalsign/mgo) that adds ODM, hooks, validation and population process, to its raw Mongo functions. Mogo started as a fork of the [bongo](https://github.com/go-mogo/mogo) project and aims to be a re-thinking of the already developed concepts, nearest to the backend mgo driver, but without giving up the simplicity of use. It also adds advanced features such as pagination, population of referenced document which belongs to other collections, and index creation on document fields.
+Mogo is a wrapper for mgo (https://github.com/globalsign/mgo) that adds ODM, hooks, validation and population process, to its raw Mongo functions. Mogo started as a fork of the [bongo](https://github.com/go-bongo/bongo) project and aims to be a re-thinking of the already developed concepts, nearest to the backend mgo driver, but without giving up the simplicity of use. It also adds advanced features such as pagination, population of referenced document which belongs to other collections, and index creation on document fields.
 
 Mogo is tested using the fantasic GoConvey (https://github.com/smartystreets/goconvey)
 
