@@ -4,6 +4,8 @@ Mogo is a wrapper for mgo (https://github.com/globalsign/mgo) that adds ODM, hoo
 
 Mogo is tested using GoConvey (https://github.com/smartystreets/goconvey)
 
+(note: if you like this repo and want to collaborate, please don't hesitate more ;-)
+
 <!-- [![Build Status](https://travis-ci.org/goonode/mogo.svg?branch=master)](https://travis-ci.org/goonode/mogo.svg?branch=master)
 
 [![Coverage Status](https://coveralls.io/repos/go-mogo/mogo/badge.svg)](https://coveralls.io/r/go-mogo/mogo) -->
@@ -55,17 +57,17 @@ To create a new Model you need to define the document struct, attach the Documen
 
 ```go
 type Bongo struct {
-	DocumentModel `bson:",inline" coll:"mogo-registry-coll"`
+	mogo.DocumentModel `bson:",inline" coll:"mogo-registry-coll"`
 	Name          string
 	Friends       RefField `ref:"Macao"`
 }
 
 type Macao struct {
-	DocumentModel `bson:",inline" coll:"mogo-registry-coll"`
+	mogo.DocumentModel `bson:",inline" coll:"mogo-registry-coll"`
 	Name          string
 }
 
-ModelRegistry.Register(Bongo{}, Macao{})
+mogo.ModelRegistry.Register(Bongo{}, Macao{})
 
 ```
 
@@ -256,18 +258,18 @@ It is possible to use a document field to store references to other documents. T
 
 ```go
 type Bongo struct {
-	DocumentModel `bson:",inline" coll:"mogo-registry"` // The mogo will be stored in the mogo-registry collection
+	mogo.DocumentModel `bson:",inline" coll:"mogo-registry"` // The mogo will be stored in the mogo-registry collection
 	Name          string
 	Friends       RefFieldSlice `ref:"Macao"` // The field Friends of mogo is a reference to a slice of Macao objects
 	BestFriend    RefField      `ref:"Macao"`
 }
 
 type Macao struct {
-	DocumentModel `bson:",inline" coll:"mogo-registry"` // The Macao will be stored in the mogo-registry collection
+	mogo.DocumentModel `bson:",inline" coll:"mogo-registry"` // The Macao will be stored in the mogo-registry collection
 	Name          string
 }
 
-ModelRegistry.Register(Bongo{}, Macao{})
+mogo.ModelRegistry.Register(Bongo{}, Macao{})
 ```
 
 The `RefField` accepts a bson id that will be stored in the related field of the document. To load the `RefField` with the referenced object, the `Populate()` method will be used. The `Populate()` works on *loaded* document (i.e. document returned by Find()/Iter() methods). The following example show how to use this feature. 
@@ -314,7 +316,7 @@ To enable pagination you need to call the `Paginate()` method and the `NextPage(
 conn := getConnection()
 defer conn.Session.Close()
 
-ModelRegistry.Register(noHookDocument{}, hookedDocument{})
+mogo.ModelRegistry.Register(noHookDocument{}, hookedDocument{})
 
 doc := NewDoc(noHookDocument{}).(*noHookDocument)
 
