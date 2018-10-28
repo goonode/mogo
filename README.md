@@ -2,7 +2,7 @@
 # What's Mogo?
 Mogo is a wrapper for mgo (https://github.com/globalsign/mgo) that adds ODM, hooks, validation and population process, to its raw Mongo functions. Mogo started as a fork of the [bongo](https://github.com/go-bongo/bongo) project and aims to be a re-thinking of the already developed concepts, nearest to the backend mgo driver, but without giving up the simplicity of use. It also adds advanced features such as pagination, population of referenced document which belongs to other collections, and index creation on document fields.
 
-Mogo is tested using the fantasic GoConvey (https://github.com/smartystreets/goconvey)
+Mogo is tested using GoConvey (https://github.com/smartystreets/goconvey)
 
 <!-- [![Build Status](https://travis-ci.org/goonode/mogo.svg?branch=master)](https://travis-ci.org/goonode/mogo.svg?branch=master)
 
@@ -69,16 +69,18 @@ ModelRegistry.Register(Bongo{}, Macao{})
 
 ```
 
-`ModelRegistry` is an helper struct which can be used to globally register all models of the application. It will be used to store internal information about all document structs, that will be used to perform internal magics.
+`ModelRegistry` is an helper struct and can be used to globally register all models of the application. It will be used internally to store information about the document, that will be used to perform internal magics.
 
 
 ### Create a Document
 
-Any struct can be used as a document as long as it embed the `DocumentModel` struct. The `DocumentModel` provided with mogo implements the `Document` interface as well as the `Model`, `NewTracker`, `TimeCreatedTracker` and `TimeModifiedTracker` interfaces (to keep track of new/existing documents and created/modified timestamps). 
-The `DocumentModel` must be embeded with `bson:",inline"` tag otherwise you will get nested behavior when the data goes to your database. Also it requires the `coll` or `collection` tag which will be used to assign the model to a mongo collection. The `coll` tag can be used only on this field of the struct, and a document can only have one collection. The `idx` or `index` tag can be used to create indexes (the index feature is in development stage and very limited at the moment). 
+Any struct can be used as a document as long as it embed the `DocumentModel` struct in a field. 
+The `DocumentModel` provided with mogo implements the `Document` interface as well as the `Model`, `NewTracker`, `TimeCreatedTracker` and `TimeModifiedTracker` interfaces (to keep track of new/existing documents and created/modified timestamps). 
+The `DocumentModel` must be embedded with `bson:",inline"` tag otherwise you will get nested behavior when the data goes to your database. Also it requires the `coll` or `collection` tag which will be used to assign the model to a mongo collection. 
+The `coll` tag can be used only on this field of the struct, and each document can only have one collection. The `idx` or `index` tag can be used to create indexes (the index feature is in development stage and very limited at the moment). 
 The syntax for the `idx` tag is `{field1,...},unique,sparse,...`. The field name must follow the bson tag specs.
 
-The recommended way to define a new document model is by calling the `NewDoc`, that returns a pointer to a newly created document.
+The recommended way to create a new document model instance is by calling the `NewDoc`, that returns a pointer to a newly created document.
 
 ```go
 type Person struct {
@@ -119,7 +121,12 @@ func main() {
 }
 ```
 
-Index definition using the `idx` tag.
+Indexes can be defined using the `idx` tag on the field you want to create the index for. The syntax for the `idx` tag is 
+```go
+`idx:{field || field1,field2,...},keyword1,keyword2,...`
+```
+
+Supported keywords are `unique, sparse, background and dropdups`.
 
 ```go
 type HomeAddress struct {
@@ -144,6 +151,19 @@ func main() {
 }
 ```
 
+Also composite literal can be used to initialize the document before creating a new instance:
+
+```go
+func main() {
+	Person := NewDoc(Person{
+		FirstName: "MyFirstName",
+		LastName: "MyLastName",
+		...
+	}).(*Person)
+	...
+}
+```
+
 #### Hooks
 
 You can add special methods to your document type that will automatically get called by mogo during certain actions. Currently available hooks are:
@@ -155,25 +175,26 @@ You can add special methods to your document type that will automatically get ca
 * `func (s *DocumentStruct) AfterDelete() error`
 * `func (s *DocumentStruct) AfterFind() error`
 
-### Saving Models
+### Saving or Updating Models
 
-Just call `Save` helper func on a `DocumentModel` instance. 
-The `DocumentModel` must have a connection binded to it before calling `Save`
+To save a document just call `Save()` helper func passing the instance as parameter, or using the instance method of the created
+document instance. Actually the `Save()` func make a call to the underlying mgo.UpsertId() func, so it can be used to perform a document
+update, too.
 
 ```go
 myPerson := NewDoc(Person{}).(*Person)
 myPerson.FirstName = "Bingo"
-myPerson.LastName = "mogo"
+myPerson.LastName = "Mogo"
 
 err := Save(myPerson)
 ```
 
-or the equivalent form using the DocumentModel `Save` method:
+or the equivalent form using the `Save()` method of the new instance:
 
 ```go
 myPerson := NewDoc(Person{}).(*Person)
 myPerson.FirstName = "Bingo"
-myPerson.LastName = "mogo"
+myPerson.LastName = "Mogo"
 
 err := myPerson.Save()
 ```
@@ -249,14 +270,14 @@ type Macao struct {
 ModelRegistry.Register(Bongo{}, Macao{})
 ```
 
-The `RefField` accepts a bson id that will be stored in the related field of the document. To load the `RefField` with the referenced object, the `Populate()` method can be used. The `Populate()` works on *filled* document (i.e. document returned by Find()/Iter() methods). The following example show how to use this feature. 
+The `RefField` accepts a bson id that will be stored in the related field of the document. To load the `RefField` with the referenced object, the `Populate()` method will be used. The `Populate()` works on *loaded* document (i.e. document returned by Find()/Iter() methods). The following example show how to use this feature. 
 
 ```go
 ...
 
 bongo := NewDoc(Bongo{}).(*Bongo)
 
-// All friends of bongo are macaos, now we will give some friends to bongo
+// All friends of bongo are macaos, and now we will give some friends to bongo
 for i := 0; i < 10; i++ {
 	macao := NewDoc(Macao{}).(*Macao)
 	macao.Name = fmt.Sprintf("Macky%d", i)
@@ -264,7 +285,7 @@ for i := 0; i < 10; i++ {
 	bongo.Friends = append(bongo.Friends, &RefField{ID: macao.ID})
 }
 
-// But bongo best friend is
+// But bongo best friend is Polly
 macao := NewDoc(Macao{}).(*Macao)
 macao.Name = "Polly"
 Save(macao)
