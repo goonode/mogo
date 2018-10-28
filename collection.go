@@ -146,6 +146,6 @@ func Find(doc Document, query interface{}) *Query {
 	return nil
 }
 
-// Populate ...
+// Populate (TODO: make this wrapper)
 func Populate(doc Document, query interface{}, ref string) {
 }

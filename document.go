@@ -83,7 +83,7 @@ type DocumentModel struct {
 	cinfo *mgo.ChangeInfo `bson:"-"`
 }
 
-// RefField is a reference field to another model. The recevier will return the real object.
+// RefField is a reference field to another model. The receiver will return the real object.
 type RefField struct {
 	ID bson.ObjectId `bson:"_id,omitempty" json:"_id"`
 }
