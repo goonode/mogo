@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"sync"
 
 	"github.com/globalsign/mgo"
 )
@@ -63,6 +64,8 @@ var ModelRegistry = make(ModelReg, 0)
 // All underlying operations are made using this connection
 var DBConn *Connection
 
+var mu sync.Mutex
+
 // Connect creates a new connection and run Connect()
 func Connect(config *Config) (*Connection, error) {
 	conn := &Connection{
@@ -85,6 +88,9 @@ func Connect(config *Config) (*Connection, error) {
 
 // Register ...
 func (r ModelReg) Register(i ...interface{}) {
+	defer mu.Unlock()
+
+	mu.Lock()
 	for p, o := range i {
 		t := reflect.TypeOf(o)
 		v := reflect.ValueOf(o)
@@ -97,16 +103,16 @@ func (r ModelReg) Register(i ...interface{}) {
 		if t.Kind() != reflect.Struct {
 			panic(fmt.Sprintf("Only type struct can be used as document model (passed type %s (pos: %d) is not struct)", n, p))
 		}
-		var Idx = -1
+		var idx = -1
 		for i := 0; i < v.NumField(); i++ {
 			ft := t.Field(i)
 			if ft.Type.ConvertibleTo(reflect.TypeOf(DocumentModel{})) {
-				Idx = i
+				idx = i
 				break
 			}
 		}
 
-		if Idx == -1 {
+		if idx == -1 {
 			panic(fmt.Sprintf("A document model must embed a DocumentModel type field (passed type %s (pos: %d) does not have)", n, p))
 		}
 
@@ -116,7 +122,7 @@ func (r ModelReg) Register(i ...interface{}) {
 		}
 
 		ModelRegistry[n] = &ModelInternals{
-			Idx:        Idx,
+			Idx:        idx,
 			Type:       t,
 			Collection: coll,
 			Indexes:    pi,
@@ -375,9 +381,7 @@ func interfaceName(i interface{}) string {
 
 	v := reflect.ValueOf(i)
 	switch v.Kind() {
-	case reflect.Slice:
-		fallthrough
-	case reflect.Map:
+	case reflect.Slice, reflect.Map:
 		inner := v.Type().Elem()
 		switch inner.Kind() {
 		case reflect.Ptr:
