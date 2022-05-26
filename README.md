@@ -1,6 +1,6 @@
 
 # What's Mogo?
-Mogo is a wrapper for mgo (https://github.com/globalsign/mgo) that adds ODM, hooks, validation and population process, to its raw Mongo functions. Mogo started as a fork of the [bongo](https://github.com/go-bongo/bongo) project and aims to be a re-thinking of the already developed concepts, nearest to the backend mgo driver, but without giving up the simplicity of use. It also adds advanced features such as pagination, population of referenced document which belongs to other collections, and index creation on document fields.
+Mogo is a wrapper for mgo (https://github.com/globalsign/mgo) that adds ODM, hooks, validation, and population process to its raw Mongo functions. Mogo started as a fork of the [bongo](https://github.com/go-bongo/bongo) project and aims to be a re-thinking of the already developed concepts, nearest to the backend mgo driver, but without giving up the simplicity of use. It also adds advanced features such as pagination, population of referenced document which belongs to other collections, and index creation on document fields.
 
 Mogo is tested using GoConvey (https://github.com/smartystreets/goconvey)
 
@@ -29,8 +29,8 @@ Create a new `mogo.Config` instance:
 
 ```go
 config := &mogo.Config{
-	ConnectionString: "localhost",
-	Database:         "mogotest",
+	ConnectionString: "localhostPort",
+	Database:         "dbName",
 }
 ```
 
@@ -43,11 +43,10 @@ if err != nil {
 	log.Fatal(err)
 }
 ```
-`Connect` will create a connection for you and also will store this connection in DBConn global var. 
-This global var can be used to access to the Connection object from any place inside the application and it will be used
-also from all internal functions when an access to the connection is needed. 
+`Connect` will create a connection for you and will also store this connection in the DBConn global var. 
+This global var can be used to access the Connection object from any place inside the application and it will be used from all internal functions when an access to the connection is needed. 
 
-If you need to, you can access the raw `mgo` session with `connection.Session`
+If you need to, you can access the raw `mgo` session with `connection.Session`.
 
 ### Create a Model
 
@@ -71,18 +70,18 @@ mogo.ModelRegistry.Register(Bongo{}, Macao{})
 
 ```
 
-`ModelRegistry` is an helper struct and can be used to globally register all models of the application. It will be used internally to store information about the document, that will be used to perform internal magics.
+`ModelRegistry` is an helper struct and can be used to globally register all models of the application. It will be used internally to store information about the document that will be used to perform internal magic.
 
 
 ### Create a Document
 
-Any struct can be used as a document as long as it embed the `DocumentModel` struct in a field. 
+Any struct can be used as a document, as long as it embeds the `DocumentModel` struct in a field. 
 The `DocumentModel` provided with mogo implements the `Document` interface as well as the `Model`, `NewTracker`, `TimeCreatedTracker` and `TimeModifiedTracker` interfaces (to keep track of new/existing documents and created/modified timestamps). 
-The `DocumentModel` must be embedded with `bson:",inline"` tag otherwise you will get nested behavior when the data goes to your database. Also it requires the `coll` or `collection` tag which will be used to assign the model to a mongo collection. 
+The `DocumentModel` must be embedded with `bson:",inline"` tag, otherwise you will get nested behavior when the data goes to your database. Also, it requires the `coll` or `collection` tag which will be used to assign the model to a mongo collection. 
 The `coll` tag can be used only on this field of the struct, and each document can only have one collection. The `idx` or `index` tag can be used to create indexes (the index feature is in development stage and very limited at the moment). 
 The syntax for the `idx` tag is `{field1,...},unique,sparse,...`. The field name must follow the bson tag specs.
 
-The recommended way to create a new document model instance is by calling the `NewDoc`, that returns a pointer to a newly created document.
+The recommended way to create a new document model instance is by calling the `NewDoc` that returns a pointer to a newly created document.
 
 ```go
 type Person struct {
